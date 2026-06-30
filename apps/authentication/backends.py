@@ -16,10 +16,15 @@ class EmailOrUsernameModelBackend(ModelBackend):
         try:
             # Query evaluating the text pool against both columns concurrently
             user = User.objects.get(
-                Q(username__iexact=username) | Q(email__iexact=username))
+                Q(username__iexact=username) | Q(email__iexact=username)
+            )
         except User.DoesNotExist:
             return None
 
-        if password and user.check_password(password) and self.user_can_authenticate(user):
+        if (
+            password
+            and user.check_password(password)
+            and self.user_can_authenticate(user)
+        ):
             return user
         return None
