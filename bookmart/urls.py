@@ -15,7 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
-import debug_toolbar
+from debug_toolbar.toolbar import debug_toolbar_urls
 from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import (
@@ -30,19 +30,18 @@ admin.site.index_title = "Admin Panel"
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("__debug__/", include(debug_toolbar.urls)),
-    path("auth/", include("apps.authentication.urls")),
-    # --- AUTOMATED API DOCUMENTATION ENDPOINTS ---
-    # Generates the raw schema map payload (.yaml/.json download)
-    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    # Interactive Swagger GUI: Perfect for executing live test mutations
+    path("api-auth/", include("rest_framework.urls", namespace="rest_framework")),
+    path("api/v1/", include("apps.authentication.urls")),
+    path("api/v1/core/", include("apps.core.urls")),
+    path("docs/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "docs/swagger/",
         SpectacularSwaggerView.as_view(url_name="schema"),
         name="swagger-ui",
     ),
-    # Clean alternative ReDoc layout reader view (Clean for frontend reading)
     path(
-        "docs/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc-ui"
+        "docs/redoc/",
+        SpectacularRedocView.as_view(url_name="schema"),
+        name="redoc-ui",
     ),
-]
+] + debug_toolbar_urls()

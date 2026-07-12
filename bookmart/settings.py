@@ -45,12 +45,13 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "rest_framework_simplejwt",
-    "djoser",
+    # "djoser",
     "drf_spectacular",
     "drf_spectacular_sidecar",
     "import_export",
     "django_filters",
     "debug_toolbar",
+    "apps.core",
     "apps.authentication",
     "apps.books",
     "apps.marketplace",
@@ -130,20 +131,12 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-AUTHENTICATION_BACKENDS = [
-    "apps.authentication.backends.EmailOrUsernameModelBackend",
-    # 'django.contrib.preferred_auth.ModelBackend',  # Fallback default handler
-]
+# AUTHENTICATION_BACKENDS = [
+#     "apps.authentication.backends.EmailOrUsernameModelBackend",
+#     # 'django.contrib.preferred_auth.ModelBackend',  # Fallback default handler
+# ]
 
 AUTH_USER_MODEL = "authentication.User"
-
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ),
-    "DEFAULT_FILTER_BACKENDS": ("django_filters.rest_framework.DjangoFilterBackend",),
-    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-}
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
@@ -154,29 +147,58 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
-DJOSER = {
-    "LOGIN_FIELD": "email",
-    # Set to True if your signup view has confirm_password
-    "USER_CREATE_PASSWORD_RETYPE": False,
-    "SEND_ACTIVATION_EMAIL": True,  # Enforces OTP activation loops
-    "PASSWORD_RESET_CONFIRM_URL": "password/reset/confirm/{uid}/{token}",
-    "ACTIVATION_URL": "activate/{uid}/{token}",
-    "SERIALIZERS": {
-        "user_create": "apps.authentication.serializers.RegisterSerializer",
-        "user": "apps.authentication.serializers.UserSerializer",
-        "current_user": "apps.authentication.serializers.UserSerializer",
-        "user_delete": "djoser.serializers.UserDeleteSerializer",
-    },
-}
+# DJOSER = {
+#     "LOGIN_FIELD": "email",
+#     # Set to True if your signup view has confirm_password
+#     "USER_CREATE_PASSWORD_RETYPE": False,
+#     "SEND_ACTIVATION_EMAIL": True,  # Enforces OTP activation loops
+#     "PASSWORD_RESET_CONFIRM_URL": "password/reset/confirm/{uid}/{token}",
+#     "ACTIVATION_URL": "activate/{uid}/{token}",
+#     "SERIALIZERS": {
+#         "user_create": "apps.core.serializers.RegisterSerializer",
+#         "user": "apps.core.serializers.UserSerializer",
+#         "current_user": "apps.core.serializers.UserSerializer",
+#         "user_delete": "djoser.serializers.UserDeleteSerializer",
+#     },
+# }
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Bookmart Marketplace API Engine",
-    "DESCRIPTION": "The multi-tenant P2P academic book marketplace engine backend servicing Next.js and React Native clients.",
+    "DESCRIPTION": "The multi-tenant C2C book marketplace engine backend servicing Next.js and React Native clients.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "SWAGGER_UI_DIST": "SIDECAR",  # Instructs Swagger to pull css files locally
     "SWAGGER_UI_FAVORITE_SUPPORT": True,
 }
+
+
+# Django REST Framework Settings
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+    "DEFAULT_FILTER_BACKENDS": ("django_filters.rest_framework.DjangoFilterBackend",),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+    ],
+}
+
+if DEBUG:
+    REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"].append(
+        "rest_framework.renderers.BrowsableAPIRenderer",
+    )
+
+
+# Mail
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_HOST_USER = "ga12031988@gmail.com"
+EMAIL_HOST_PASSWORD = "jvqs inll ixve rmyb"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
+DEFAULT_FROM_EMAIL = "ga12031988@gmail.com"
 
 
 # Internationalization

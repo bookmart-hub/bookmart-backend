@@ -1,81 +1,77 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
-from apps.authentication.models import College, Profile
-
-User = get_user_model()
-
-
-class CollegeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = College
-        fields = ["id", "name", "district", "state"]
+from apps.authentication.models import User
+from apps.core.serializers import ProfileResponseSerializer
 
 
-class UserProfileSerializer(serializers.ModelSerializer):
-    college = CollegeSerializer(read_only=True)
-    college_id = serializers.PrimaryKeyRelatedField(
-        queryset=College.objects.all(),
-        write_only=True,
-        source="college",
-        required=False,
-        allow_null=True,
-    )
-
-    class Meta:
-        model = Profile
-        fields = [
-            "full_name",
-            "phone_number",
-            "college",
-            "college_id",
-            "department_stream",
-            "city_location",
-            "is_top_seller",
-            "latitude",
-            "longitude",
-        ]
-        read_only_fields = ["is_top_seller"]
+class OTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(write_only=True)
 
 
-class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=8)
-    full_name = serializers.CharField(write_only=True)
+class UserRegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, validators=[validate_password])
 
     class Meta:
         model = User
-        fields = ["username", "email", "password", "full_name"]
+        fields = ["email", "password", "full_name"]
+        read_only_fields = [
+            "id",
+            "email_verified",
+            "provider",
+            "created_at",
+        ]
 
     def validate_email(self, value):
+        value = get_user_model().objects.normalize_email(value)
+
         if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError("A user with this email already exists.")
-        return value.lower()
 
-    def validate_username(self, value):
-        if User.objects.filter(username__iexact=value).exists():
-            raise serializers.ValidationError("This username is already taken.")
-        return value.lower()
+        return value
 
     def create(self, validated_data):
-        full_name = validated_data.pop("full_name")
-        password = validated_data.pop("password")
-
-        # Create user instance cleanly via our Custom User Manager
-        user = User.objects.create_user(**validated_data)
-        user.set_password(password)
-        user.save()
-
-        # Profile is automatically instantiated, update its full name
-        profile = user.profile
-        profile.full_name = full_name
-        profile.save()
-
-        return user
+        return User.objects.create_user(**validated_data)
 
 
-class UserSerializer(serializers.ModelSerializer):
-    profile = UserProfileSerializer(read_only=True)
+class UserLoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "full_name",
+        ]
+        read_only_fields = [
+            "id",
+            "email_verified",
+            "provider",
+            "created_at",
+        ]
+
+
+class UserResponseSerializer(serializers.ModelSerializer):
+    profile = ProfileResponseSerializer(read_only=True)
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "email_verified", "profile"]
+        fields = [
+            "id",
+            "email",
+            "full_name",
+            "provider",
+            "email_verified",
+            "created_at",
+            "profile",
+        ]
+        read_only_fields = [
+            "id",
+            "email_verified",
+            "provider",
+            "created_at",
+        ]
