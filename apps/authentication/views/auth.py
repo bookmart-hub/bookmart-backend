@@ -106,6 +106,7 @@ class LogoutView(views.APIView):
 
 
 class RefreshTokenView(views.APIView):
+    serializer_class = TokenRefreshSerializer
     permission_classes = [permissions.AllowAny]
 
     @extend_schema(

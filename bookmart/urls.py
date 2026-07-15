@@ -16,6 +16,8 @@ Including another URLconf
 """
 
 from debug_toolbar.toolbar import debug_toolbar_urls
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import (
@@ -33,6 +35,7 @@ urlpatterns = [
     path("api-auth/", include("rest_framework.urls", namespace="rest_framework")),
     path("api/v1/", include("apps.authentication.urls")),
     path("api/v1/core/", include("apps.core.urls")),
+    path("api/v1/book/", include("apps.books.urls")),
     path("docs/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "docs/swagger/",
@@ -44,4 +47,9 @@ urlpatterns = [
         SpectacularRedocView.as_view(url_name="schema"),
         name="redoc-ui",
     ),
-] + debug_toolbar_urls()
+]
+
+
+if settings.DEBUG:
+    urlpatterns += debug_toolbar_urls()
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

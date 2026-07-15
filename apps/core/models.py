@@ -25,10 +25,12 @@ class College(models.Model):
 
 
 class Profile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     phone_validator = RegexValidator(
         regex=r"^\+?[1-9]\d{7,14}$", message="Enter a valid phone number."
     )
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
+    image = models.ImageField(upload_to="profile/images", null=True)
     phone_number = models.CharField(
         max_length=16,
         validators=[phone_validator],
@@ -36,6 +38,14 @@ class Profile(models.Model):
         null=True,
         help_text="Format: +91XXXXXXXXXX",
     )
+    date_of_birth = models.DateField(null=True)
+    bio = models.TextField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Tell others a little about yourself.",
+    )
+
     college = models.ForeignKey(
         College,
         on_delete=models.SET_NULL,
@@ -47,7 +57,7 @@ class Profile(models.Model):
     personalization_fields = models.JSONField(default=dict, blank=True)
 
     # Added layout attributes to match screen 21 parameters exactly
-    city_location = models.CharField(max_length=150, default="Kolkata, India")
+    city_location = models.CharField(max_length=150, null=True)
 
     # Coordinates for "Nearest Books" feature
     latitude = models.DecimalField(
