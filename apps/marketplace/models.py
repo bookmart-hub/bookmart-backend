@@ -6,7 +6,7 @@ from django.db import models
 from apps.books.models import Book
 
 
-class Listing(models.Model):
+class BookListing(models.Model):
     class Condition(models.TextChoices):
         NEW = "NEW", "New"
         LIKE_NEW = "LIKE_NEW", "Like New"
@@ -34,10 +34,6 @@ class Listing(models.Model):
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.AVAILABLE, db_index=True
     )
-    images = models.JSONField(
-        default=list, help_text="Array of cloud storage photo URLs"
-    )
-
     # Coordinates copy for fast geolocation distance queries (Nearest To You)
     latitude = models.DecimalField(
         max_digits=9, decimal_places=6, null=True, blank=True
@@ -50,7 +46,29 @@ class Listing(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.book.title} - ₹{self.price} by {self.seller.username}"
+        return f"{self.book.title} - ₹{self.price} by {self.seller.full_name}"
+
+
+class BookListingImage(models.Model):
+    class ImageLabel(models.TextChoices):
+        FRONT_COVER = "FRONT_COVER", "Front Cover"
+        BACK_COVER = "BACK_COVER", "Back Cover"
+        SPINE = "SPINE", "Spine"
+        MIDDLE_PAGE = "MIDDLE_PAGE", "Middle Page"
+        DAMAGE_1 = "DAMAGE_1", "Damage 1"
+        DAMAGE_2 = "DAMAGE_2", "Damage 2"
+
+    book_listing = models.ForeignKey(
+        BookListing, on_delete=models.CASCADE, related_name="listing_images"
+    )
+    image = models.ImageField(upload_to="listing_images/")
+    label = models.CharField(
+        max_length=20, choices=ImageLabel.choices, default=ImageLabel.FRONT_COVER
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.book_listing} - {self.get_label_display()}"
 
 
 class BookRequirement(models.Model):
@@ -75,7 +93,7 @@ class BookRequirement(models.Model):
     max_budget = models.DecimalField(max_digits=10, decimal_places=2)
 
     condition_preferred = models.CharField(
-        max_length=20, choices=Listing.Condition.choices, default=Listing.Condition.GOOD
+        max_length=20, choices=BookListing.Condition.choices, default=BookListing.Condition.GOOD
     )
     additional_notes = models.TextField(blank=True)
     status = models.CharField(
@@ -96,7 +114,7 @@ class ListingAnalyticsDaily(models.Model):
     """
 
     listing = models.ForeignKey(
-        Listing, on_delete=models.CASCADE, related_name="daily_analytics"
+        BookListing, on_delete=models.CASCADE, related_name="daily_analytics"
     )
     date = models.DateField(db_index=True)
 
@@ -131,7 +149,7 @@ class PlatformReport(models.Model):
 
     # Generic relations replacement via lightweight semantic tracking IDs
     target_listing = models.ForeignKey(
-        Listing,
+        BookListing,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -166,7 +184,7 @@ class Wishlist(models.Model):
         related_name="wishlist_items",
     )
     listing = models.ForeignKey(
-        "marketplace.Listing", on_delete=models.CASCADE, related_name="wishlisted_by"
+        "marketplace.BookListing", on_delete=models.CASCADE, related_name="wishlisted_by"
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -193,7 +211,7 @@ class PlatformNotification(models.Model):
 
     # Context references
     related_listing = models.ForeignKey(
-        "marketplace.Listing", on_delete=models.SET_NULL, null=True, blank=True
+        "marketplace.BookListing", on_delete=models.SET_NULL, null=True, blank=True
     )
     action_trigger_user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True

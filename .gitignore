@@ -222,4 +222,4 @@ __marimo__/
 # Temporary development files
 .temp/
 
-media/profile/
+media/**
