@@ -165,7 +165,7 @@ SIMPLE_JWT = {
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Bookmart Marketplace API Engine",
-    "DESCRIPTION": "The multi-tenant C2C book marketplace engine backend servicing Next.js and React Native clients.",
+    "DESCRIPTION": "The multi-tenant C2C book marketplace engine backend serving Next.js and React Native clients.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,

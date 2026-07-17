@@ -11,26 +11,31 @@ class CollegeSerializer(serializers.ModelSerializer):
 
 class ProfileResponseSerializer(serializers.ModelSerializer):
     college = CollegeSerializer(read_only=True)
+    full_name = serializers.CharField(source="user.full_name", read_only=True)
 
     class Meta:
         model = Profile
         fields = [
             "id",
+            "full_name",
             "image",
             "phone_number",
+            "date_of_birth",
             "college",
             "city_location",
             "latitude",
             "longitude",
-            "personalization_fields",
         ]
 
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(source="user.full_name", required=False)
+
     class Meta:
         model = Profile
         fields = [
             "id",
+            "full_name",
             "phone_number",
             "date_of_birth",
             "bio",
@@ -38,7 +43,6 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             "city_location",
             "latitude",
             "longitude",
-            "personalization_fields",
         ]
 
     def validate_latitude(self, value):
@@ -50,6 +54,16 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         if value is not None and not (-180 <= value <= 180):
             raise serializers.ValidationError("Longitude must be between -180 and 180.")
         return value
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop("user", None)
+        if user_data:
+            user = instance.user
+            full_name = user_data.get("full_name")
+            if full_name is not None:
+                user.full_name = full_name
+                user.save()
+        return super().update(instance, validated_data)
 
 
 class ProfileImageUploadSerializer(serializers.ModelSerializer):

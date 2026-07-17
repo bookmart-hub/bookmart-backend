@@ -43,43 +43,40 @@ class ProfileViewSet(
         return ProfileResponseSerializer
 
     @extend_schema(
+        methods=["GET"],
         summary="Retrieve user profile",
         description="Fetches the profile details of the currently authenticated user.",
         tags=["Profile Management"],
+        responses=ProfileResponseSerializer,
     )
-    @decorators.action(
-        detail=False,
-        methods=["GET"],
-        url_path="me",
-    )
-    def profile(self, request):
-        profile = request.user.profile
-        serializer = ProfileResponseSerializer(profile)
-        return Response(serializer.data)
-
     @extend_schema(
+        methods=["PATCH"],
         summary="Partially update user profile",
         description="Update one or more fields of the authenticated user's profile.",
         tags=["Profile Management"],
+        request=ProfileUpdateSerializer,
+        responses=ProfileResponseSerializer,
     )
     @decorators.action(
         detail=False,
-        methods=["patch"],
+        methods=["GET", "PATCH"],
         url_path="me",
     )
-    def update_me(self, request):
+    def me(self, request):
         profile = get_object_or_404(Profile, user=request.user)
+        if request.method.upper() == "PATCH":
+            serializer = ProfileUpdateSerializer(
+                instance=profile,
+                data=request.data,
+                partial=True,
+                context={"request": request},
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            profile.refresh_from_db()
 
-        serializer = ProfileUpdateSerializer(
-            instance=profile,
-            data=request.data,
-            partial=True,
-        )
-
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-
-        return Response(ProfileResponseSerializer(request.user.profile).data)
+        serializer = ProfileResponseSerializer(profile, context={"request": request})
+        return Response(serializer.data)
 
     @extend_schema(
         summary="Upload profile image of User",
