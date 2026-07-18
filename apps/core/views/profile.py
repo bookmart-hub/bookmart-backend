@@ -10,7 +10,6 @@ from rest_framework.response import Response
 
 from apps.core.models import Profile
 from apps.core.serializers import (
-    ProfileImageUploadSerializer,
     ProfileOnboardingSerializer,
     ProfileResponseSerializer,
     ProfileUpdateSerializer,
@@ -77,36 +76,6 @@ class ProfileViewSet(
 
         serializer = ProfileResponseSerializer(profile, context={"request": request})
         return Response(serializer.data)
-
-    @extend_schema(
-        summary="Upload profile image of User",
-        description="Upload one image of the authenticated user.",
-        tags=["Profile Management"],
-        request=ProfileImageUploadSerializer,
-        responses=ProfileResponseSerializer,
-    )
-    @decorators.action(
-        detail=False,
-        methods=["patch"],
-        parser_classes=[MultiPartParser, FormParser],
-        url_path="upload-image",
-    )
-    def upload_image(self, request):
-        profile = get_object_or_404(Profile, user=request.user)
-
-        serializer = ProfileImageUploadSerializer(
-            instance=profile,
-            data=request.data,
-            partial=True,
-        )
-
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-
-        return Response(
-            ProfileResponseSerializer(profile).data,
-            status=HTTPStatus.OK,
-        )
 
 
 class ProfileOnboardingView(views.APIView):

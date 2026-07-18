@@ -1,6 +1,7 @@
 from datetime import date
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -18,6 +19,13 @@ class ProfileTests(APITestCase):
         self.profile = self.user.profile
         self.profile.date_of_birth = date(2000, 1, 1)
         self.profile.save()
+
+        # 1x1 transparent pixel GIF
+        self.dummy_image_data = (
+            b"\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00"
+            b"\xff\xff\xff\x21\xf9\x04\x01\x00\x00\x00\x00\x2c\x00\x00\x00\x00"
+            b"\x01\x00\x01\x00\x00\x02\x02\x4c\x01\x00\x3b"
+        )
 
     def test_retrieve_profile(self):
         """Ensure retrieve profile me endpoint returns correct fields."""
@@ -50,3 +58,43 @@ class ProfileTests(APITestCase):
         self.assertEqual(self.user.full_name, "Updated Name")
         self.assertEqual(self.profile.date_of_birth, date(1995, 12, 31))
         self.assertEqual(self.profile.bio, "New Bio info")
+
+    def test_update_profile_image_valid(self):
+        """Ensure updating profile with a valid image uploads the file successfully."""
+        self.client.force_authenticate(user=self.user)
+        url = "/api/v1/core/profile/me/"
+        image_file = SimpleUploadedFile(
+            "avatar.gif", self.dummy_image_data, content_type="image/gif"
+        )
+        data = {"image": image_file, "bio": "Uploaded an avatar!"}
+        response = self.client.patch(url, data, format="multipart")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.profile.refresh_from_db()
+        self.assertTrue(self.profile.image.name.startswith("profile/images/avatar"))
+        self.assertIsNotNone(response.data["image"])
+
+    def test_update_profile_image_invalid_type(self):
+        """Ensure non-image files are rejected."""
+        self.client.force_authenticate(user=self.user)
+        url = "/api/v1/core/profile/me/"
+        text_file = SimpleUploadedFile(
+            "doc.txt", b"plain text", content_type="text/plain"
+        )
+        data = {"image": text_file}
+        response = self.client.patch(url, data, format="multipart")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("image", response.data)
+
+    def test_update_profile_image_oversized(self):
+        """Ensure oversized images (exceeding 5 MB) are rejected."""
+        self.client.force_authenticate(user=self.user)
+        url = "/api/v1/core/profile/me/"
+        oversized_data = b"0" * (5 * 1024 * 1024 + 10)
+        oversized_file = SimpleUploadedFile(
+            "huge.gif", oversized_data, content_type="image/gif"
+        )
+        data = {"image": oversized_file}
+        response = self.client.patch(url, data, format="multipart")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("image", response.data)

@@ -4,10 +4,9 @@ from rest_framework import filters, permissions, status, viewsets
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
-from apps.marketplace.models import BookListing, BookListingImage
+from apps.marketplace.models import BookListing
 from apps.marketplace.serializers import (
     BookListingCreateSerializer,
-    BookListingImageSerializer,
     BookListingResponseSerializer,
 )
 from apps.marketplace.services import create_book_listing
@@ -92,41 +91,3 @@ class BookListingViewSet(viewsets.ModelViewSet):
         )
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
-
-@extend_schema_view(
-    list=extend_schema(
-        summary="List book listing images",
-        description="List all the uploaded book listing images.",
-        tags=["Book Listing Images"],
-    ),
-    retrieve=extend_schema(
-        summary="Retrieve book listing image details",
-        description="Retrieve details of a specific book listing image.",
-        tags=["Book Listing Images"],
-    ),
-    create=extend_schema(
-        summary="Upload a new book listing image",
-        description="Upload a new image file and associate it with a book listing and a label.",
-        tags=["Book Listing Images"],
-    ),
-    update=extend_schema(
-        summary="Update a book listing image",
-        description="Update details of a book listing image.",
-        tags=["Book Listing Images"],
-    ),
-    partial_update=extend_schema(
-        summary="Partially update a book listing image",
-        description="Partially update details of a book listing image.",
-        tags=["Book Listing Images"],
-    ),
-    destroy=extend_schema(
-        summary="Delete a book listing image",
-        description="Remove a book listing image.",
-        tags=["Book Listing Images"],
-    ),
-)
-class BookListingImageViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser, JSONParser]
-    queryset = BookListingImage.objects.all()
-    serializer_class = BookListingImageSerializer

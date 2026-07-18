@@ -36,6 +36,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "full_name",
+            "image",
             "phone_number",
             "date_of_birth",
             "bio",
@@ -44,6 +45,14 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             "latitude",
             "longitude",
         ]
+
+    def validate_image(self, value):
+        if value:
+            if value.size > 5 * 1024 * 1024:  # 5 MB
+                raise serializers.ValidationError("Image size must not exceed 5 MB.")
+            if not value.content_type.startswith("image/"):
+                raise serializers.ValidationError("Only image files are allowed.")
+        return value
 
     def validate_latitude(self, value):
         if value is not None and not (-90 <= value <= 90):
@@ -64,21 +73,6 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
                 user.full_name = full_name
                 user.save()
         return super().update(instance, validated_data)
-
-
-class ProfileImageUploadSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Profile
-        fields = ["image"]
-
-    def validate_image(self, value):
-        if value.size > 5 * 1024 * 1024:  # 5 MB
-            raise serializers.ValidationError("Image size must not exceed 5 MB.")
-
-        if not value.content_type.startswith("image/"):
-            raise serializers.ValidationError("Only image files are allowed.")
-
-        return value
 
 
 class ProfileOnboardingSerializer(serializers.ModelSerializer):

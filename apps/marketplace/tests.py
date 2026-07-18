@@ -155,26 +155,3 @@ class BookListingTests(APITestCase):
         self.assertEqual(data["listing_images"][0]["label"], "FRONT_COVER")
         self.assertIsNotNone(data["listing_images"][0]["image_url"])
 
-    def test_listing_image_upload_endpoint(self):
-        """Ensure separate endpoint to upload image works."""
-        self.client.force_authenticate(user=self.seller)
-        listing = BookListing.objects.create(
-            book=self.book,
-            seller=self.seller,
-            price=600.00,
-            condition="GOOD",
-            status="AVAILABLE",
-        )
-
-        url = "/api/v1/marketplace/listing-images/"
-        data = {
-            "book_listing": listing.id,
-            "label": "DAMAGE_1",
-            "image": self.get_dummy_file("damage1.gif"),
-        }
-        response = self.client.post(url, data, format="multipart")
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(BookListingImage.objects.count(), 1)
-        image_obj = BookListingImage.objects.first()
-        self.assertEqual(image_obj.book_listing, listing)
-        self.assertEqual(image_obj.label, "DAMAGE_1")

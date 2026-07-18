@@ -7,7 +7,7 @@ class BookSearchSerializer(serializers.Serializer):
     authors = serializers.ListField(child=serializers.CharField())
     isbn13 = serializers.CharField(allow_null=True)
     published_year = serializers.IntegerField(allow_null=True)
-    cover_url = serializers.URLField(allow_null=True)
+    cover_image = serializers.URLField(allow_null=True)
 
 
 class BookSerializer(serializers.Serializer):
