@@ -3,7 +3,7 @@ from datetime import date
 import requests
 from django.db import transaction
 
-from apps.books.models import Author, Book
+from apps.books.models import Author, Book, Category
 
 OPENLIBRARY_WORK_URL = "https://openlibrary.org"
 OPENLIBRARY_SEARCH_URL = "https://openlibrary.org/search.json"
@@ -14,6 +14,17 @@ def parse_description(description):
         return description.get("value", "")
 
     return description or ""
+
+
+def parse_first_publish_date(date_str):
+    if not date_str:
+        return None
+    import re
+    match = re.search(r"\b\d{4}\b", str(date_str))
+    if match:
+        year = int(match.group(0))
+        return date(year, 1, 1)
+    return None
 
 
 @transaction.atomic
@@ -40,16 +51,33 @@ def import_book_from_openlibrary(work_key):
         author, _ = Author.objects.get_or_create(name=author_name)
         author_objects.append(author)
 
+    first_publish_date_str = document.get("first_publish_date")
+    published_date = parse_first_publish_date(first_publish_date_str)
+
     book, created = Book.objects.update_or_create(
         openlibrary_key=work_key,
         defaults={
             "title": title,
-            "cover_url": cover_url,
+            "cover_url": cover_url or "",
+            "published_date": published_date,
         },
     )
 
     # ✅ ManyToMany assignment
     book.authors.set(author_objects)
+
+    # Parse and assign categories from subjects (limit to top 10)
+    category_objects = []
+    for subject in document.get("subjects", [])[:10]:
+        subject_name = subject.strip()
+        if len(subject_name) > 100:
+            subject_name = subject_name[:100]
+        if not subject_name:
+            continue
+        category, _ = Category.objects.get_or_create(name=subject_name)
+        category_objects.append(category)
+
+    book.categories.set(category_objects)
 
     return book, created
 
@@ -111,7 +139,7 @@ def search_books(query: str, limit: int = 10):
                 "authors": book.get("author_name", []),
                 "isbn13": isbn13,
                 "published_year": book.get("first_publish_year"),
-                "cover_image": (
+                "cover_url": (
                     f"https://covers.openlibrary.org/b/id/{cover_id}-L.jpg"
                     if cover_id
                     else None

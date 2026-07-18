@@ -1,3 +1,102 @@
-from django.test import TestCase
+from datetime import date
+from unittest.mock import patch
 
-# Create your tests here.
+from django.contrib.auth import get_user_model
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from apps.books.models import Category
+from apps.books.services import import_book_from_openlibrary
+
+User = get_user_model()
+
+
+class BookImportCategorizationTests(APITestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="importer@example.com",
+            full_name="Importer User",
+            password="testpassword123",
+        )
+
+    @patch("apps.books.services.get_book_document")
+    @patch("apps.books.services.get_author_document")
+    def test_import_book_categorization(
+        self, mock_get_author_document, mock_get_book_document
+    ):
+        mock_get_book_document.return_value = {
+            "title": "Introduction to Algorithms",
+            "covers": [12345],
+            "authors": [{"author": {"key": "/authors/OL26346A"}}],
+            "subjects": ["Algorithms", "Computer programming", "Mathematics"],
+            "first_publish_date": "1990",
+        }
+        mock_get_author_document.return_value = {"name": "Thomas H. Cormen"}
+
+        book, created = import_book_from_openlibrary("/works/OL27448W")
+
+        self.assertTrue(created)
+        self.assertEqual(book.title, "Introduction to Algorithms")
+        self.assertEqual(book.authors.count(), 1)
+        self.assertEqual(book.authors.first().name, "Thomas H. Cormen")
+        self.assertEqual(book.published_date, date(1990, 1, 1))
+
+        self.assertEqual(book.categories.count(), 3)
+        categories = list(book.categories.values_list("name", flat=True))
+        self.assertIn("Algorithms", categories)
+        self.assertIn("Computer programming", categories)
+        self.assertIn("Mathematics", categories)
+
+        algorithms_cat = Category.objects.get(name="Algorithms")
+        self.assertEqual(algorithms_cat.slug, "algorithms")
+
+        dup_cat = Category(name="Algorithms.")
+        dup_cat.save()
+        self.assertEqual(dup_cat.slug, "algorithms-1")
+
+    @patch("apps.books.services.get_book_document")
+    @patch("apps.books.services.get_author_document")
+    def test_import_book_without_covers(
+        self, mock_get_author_document, mock_get_book_document
+    ):
+        mock_get_book_document.return_value = {
+            "title": "Batman the Killing Joke",
+            "authors": [{"author": {"key": "/authors/OL26346A"}}],
+            "subjects": ["Comics"],
+            "first_publish_date": "1988 July",
+        }
+        mock_get_author_document.return_value = {"name": "Alan Moore"}
+
+        book, created = import_book_from_openlibrary("/works/OL43079896W")
+
+        self.assertTrue(created)
+        self.assertEqual(book.title, "Batman the Killing Joke")
+        self.assertEqual(book.cover_url, "")
+        self.assertEqual(book.published_date, date(1988, 1, 1))
+
+    @patch("apps.books.services.get_book_document")
+    @patch("apps.books.services.get_author_document")
+    def test_import_book_endpoint_payload(
+        self, mock_get_author_document, mock_get_book_document
+    ):
+        """Verify POST endpoint response payload is extended with published_year, authors, and categories."""
+        self.client.force_authenticate(user=self.user)
+        mock_get_book_document.return_value = {
+            "title": "Introduction to Algorithms",
+            "covers": [12345],
+            "authors": [{"author": {"key": "/authors/OL26346A"}}],
+            "subjects": ["Algorithms", "Mathematics"],
+            "first_publish_date": "1990",
+        }
+        mock_get_author_document.return_value = {"name": "Thomas H. Cormen"}
+
+        url = "/api/v1/book/import-openlibrary/"
+        data = {"openlibrary_key": "/works/OL27448W"}
+        response = self.client.post(url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["title"], "Introduction to Algorithms")
+        self.assertEqual(response.data["published_year"], 1990)
+        self.assertEqual(response.data["authors"], ["Thomas H. Cormen"])
+        self.assertEqual(response.data["categories"], ["Algorithms", "Mathematics"])

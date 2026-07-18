@@ -74,7 +74,12 @@ class BookImportAPIView(APIView):
                 "created": created,
                 "book_id": book.id,
                 "title": book.title,
-                "cover_url": (book.cover_url),
+                "cover_url": book.cover_url,
+                "published_year": (
+                    book.published_date.year if book.published_date else None
+                ),
+                "authors": [author.name for author in book.authors.all()],
+                "categories": [category.name for category in book.categories.all()],
             },
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
