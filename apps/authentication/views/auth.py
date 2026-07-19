@@ -17,6 +17,7 @@ def get_tokens_for_user(user):
 
 
 class RegisterView(views.APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
     serializer_class = serializers.UserRegisterSerializer
 
@@ -45,6 +46,7 @@ class RegisterView(views.APIView):
 
 
 class LoginView(views.APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
     serializer_class = serializers.UserLoginSerializer
 
@@ -106,6 +108,7 @@ class LogoutView(views.APIView):
 
 
 class RefreshTokenView(views.APIView):
+    authentication_classes = []
     serializer_class = TokenRefreshSerializer
     permission_classes = [permissions.AllowAny]
 

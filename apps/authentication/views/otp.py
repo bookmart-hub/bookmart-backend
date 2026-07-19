@@ -7,6 +7,7 @@ from apps.authentication.models import EmailOTP, User
 
 
 class VerifyResetOTPView(views.APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -22,6 +23,7 @@ class VerifyResetOTPView(views.APIView):
 
 class VerifyOTPView(views.APIView):
     queryset = EmailOTP.objects.all()
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
     serializer_class = serializers.OTPSerializer
 
