@@ -12,6 +12,12 @@ class Category(models.Model):
 
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, unique=True, db_index=True)
+    subtitle = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Category subtitle/tagline e.g. 'Prepare to Succeed'",
+    )
     icon = models.CharField(
         max_length=50,
         blank=True,

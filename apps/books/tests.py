@@ -175,3 +175,118 @@ class BookImportCategorizationTests(APITestCase):
         self.assertTrue(local_book["is_local"])
         self.assertEqual(local_book["authors"], ["Jane Smith"])
         self.assertIn("Artificial Intelligence", local_book["categories"])
+
+    @patch("apps.books.services.requests.get")
+    def test_search_books_local_first_does_not_call_openlibrary(self, mock_requests_get):
+        """Ensure that if local database produces results, OpenLibrary is not called."""
+        self.client.force_authenticate(user=self.user)
+
+        manual_url = "/api/v1/book/manual/"
+        self.client.post(
+            manual_url,
+            {
+                "title": "Django Web Development",
+                "author": "Alice Developer",
+            },
+            format="json",
+        )
+
+        search_url = "/api/v1/book/search/?q=Django"
+        response = self.client.get(search_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["title"], "Django Web Development")
+        self.assertTrue(response.data[0]["is_local"])
+
+        mock_requests_get.assert_not_called()
+
+
+class CategoryViewSetTests(APITestCase):
+
+    def setUp(self):
+        self.user1 = User.objects.create_user(
+            email="seller1@example.com",
+            full_name="Seller One",
+            password="testpassword123",
+        )
+        self.user2 = User.objects.create_user(
+            email="seller2@example.com",
+            full_name="Seller Two",
+            password="testpassword123",
+        )
+        self.category = Category.objects.create(
+            name="Competitive Exams",
+            subtitle="Prepare to Succeed",
+            icon="🚀",
+        )
+
+        manual_url = "/api/v1/book/manual/"
+        self.client.force_authenticate(user=self.user1)
+        res = self.client.post(
+            manual_url,
+            {
+                "title": "Quantitative Aptitude",
+                "author": "R.S. Aggarwal",
+                "category": "Competitive Exams",
+            },
+            format="json",
+        )
+        self.book_id = res.data["book_id"]
+
+        from apps.books.models import Book
+        from apps.marketplace.models import BookListing
+
+        book = Book.objects.get(id=self.book_id)
+
+        # Listing 1: Price 500
+        self.listing_500 = BookListing.objects.create(
+            book=book,
+            seller=self.user1,
+            price="500.00",
+            condition="GOOD",
+            status="AVAILABLE",
+        )
+        # Listing 2: Price 400 (cheapest)
+        self.listing_400 = BookListing.objects.create(
+            book=book,
+            seller=self.user2,
+            price="400.00",
+            condition="LIKE_NEW",
+            status="AVAILABLE",
+        )
+
+    def test_list_categories(self):
+        """Ensure GET /api/v1/book/categories/ returns list of categories with total_books_count and subtitle."""
+        url = "/api/v1/book/categories/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["name"], "Competitive Exams")
+        self.assertEqual(response.data[0]["subtitle"], "Prepare to Succeed")
+
+    def test_retrieve_category_detail_ranked_by_price(self):
+        """Ensure retrieving category returns canonical books with listings ranked by price ascending (cheapest first)."""
+        url = f"/api/v1/book/categories/{self.category.slug}/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["name"], "Competitive Exams")
+        self.assertEqual(response.data["subtitle"], "Prepare to Succeed")
+
+        books = response.data["books"]
+        self.assertEqual(len(books), 1)
+
+        quant_book = books[0]
+        self.assertEqual(quant_book["title"], "Quantitative Aptitude")
+        self.assertEqual(quant_book["authors"], ["R.S. Aggarwal"])
+        self.assertEqual(quant_book["lowest_price"], "400.00")
+        self.assertEqual(quant_book["total_listings_count"], 2)
+        self.assertEqual(quant_book["cheapest_listing"]["price"], "400.00")
+
+        # Verify listings are ordered ascending by price: 400.00 then 500.00
+        listings = quant_book["listings"]
+        self.assertEqual(len(listings), 2)
+        self.assertEqual(listings[0]["price"], "400.00")
+        self.assertEqual(listings[1]["price"], "500.00")
+
+

@@ -1,12 +1,18 @@
-from django.urls import path
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
 
 from apps.books.views import (
     BookImportAPIView,
     BookManualCreateAPIView,
     BookSearchAPIView,
+    CategoryViewSet,
 )
 
+router = DefaultRouter()
+router.register("categories", CategoryViewSet, basename="category")
+
 urlpatterns = [
+    path("", include(router.urls)),
     path(
         "search/",
         BookSearchAPIView.as_view(),
@@ -23,4 +29,3 @@ urlpatterns = [
         name="book-manual-create",
     ),
 ]
-

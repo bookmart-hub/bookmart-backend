@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.books.models import Author, Book
@@ -37,6 +38,7 @@ class SellerNestedSerializer(serializers.ModelSerializer):
         model = User
         fields = ["id", "full_name", "email", "profile_image", "phone_number"]
 
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_profile_image(self, obj):
         if hasattr(obj, "profile") and obj.profile.image:
             request = self.context.get("request")
@@ -45,6 +47,7 @@ class SellerNestedSerializer(serializers.ModelSerializer):
             return obj.profile.image.url
         return None
 
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_phone_number(self, obj):
         if hasattr(obj, "profile"):
             return obj.profile.phone_number
@@ -59,6 +62,7 @@ class BookListingImageSerializer(serializers.ModelSerializer):
         fields = ["id", "book_listing", "image", "image_url", "label", "created_at"]
         extra_kwargs = {"image": {"write_only": True}}
 
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_image_url(self, obj):
         if obj.image:
             request = self.context.get("request")

@@ -65,6 +65,15 @@ def process_category_input(category_input):
 
 @transaction.atomic
 def import_book_from_openlibrary(work_key, custom_category=None):
+    # Check if book already exists in local database
+    existing_book = Book.objects.filter(openlibrary_key=work_key).first()
+    if existing_book:
+        if custom_category:
+            manual_cats = process_category_input(custom_category)
+            for cat in manual_cats:
+                existing_book.categories.add(cat)
+        return existing_book, False
+
     document = get_book_document(work_key)
     title = document.get("title")
     covers = document.get("covers", [])
@@ -196,8 +205,6 @@ def get_author_document(author_key):
 def search_books(query: str, limit: int = 10):
     query_str = query.strip()
     results = []
-    seen_openlibrary_keys = set()
-    seen_isbns = set()
 
     # 1. Search local database first
     local_books = (
@@ -213,11 +220,6 @@ def search_books(query: str, limit: int = 10):
     )
 
     for b in local_books:
-        if b.openlibrary_key:
-            seen_openlibrary_keys.add(b.openlibrary_key)
-        if b.isbn_13:
-            seen_isbns.add(b.isbn_13)
-
         results.append(
             {
                 "id": b.id,
@@ -232,7 +234,11 @@ def search_books(query: str, limit: int = 10):
             }
         )
 
-    # 2. Search OpenLibrary
+    # 2. If matching books exist locally, return them without searching OpenLibrary
+    if results:
+        return results[:limit]
+
+    # 3. Switch to OpenLibrary search ONLY if no local books are found
     try:
         params = {
             "q": query_str,
@@ -255,12 +261,6 @@ def search_books(query: str, limit: int = 10):
                 (code for code in isbn if len(code) == 13 and code.startswith("978")),
                 None,
             )
-
-            # Avoid duplicates if local database already has this book
-            if ol_key and ol_key in seen_openlibrary_keys:
-                continue
-            if isbn13 and isbn13 in seen_isbns:
-                continue
 
             cover_id = book.get("cover_i")
             results.append(
