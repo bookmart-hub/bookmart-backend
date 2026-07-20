@@ -1,7 +1,7 @@
 from django.db import transaction
 
 from apps.books.models import Author, Book
-from apps.books.services import import_book_from_openlibrary
+from apps.books.services import import_book_from_openlibrary, process_category_input
 from apps.marketplace.models import BookListing, BookListingImage
 
 
@@ -11,6 +11,7 @@ def create_book_listing(seller, data):
     openlibrary_key = data.get("openlibrary_key")
     title = data.get("title")
     author_name = data.get("author")
+    custom_category = data.get("category") or data.get("categories")
 
     book = None
 
@@ -19,7 +20,7 @@ def create_book_listing(seller, data):
     elif openlibrary_key:
         book = Book.objects.filter(openlibrary_key=openlibrary_key).first()
         if not book:
-            book, _ = import_book_from_openlibrary(openlibrary_key)
+            book, _ = import_book_from_openlibrary(openlibrary_key, custom_category=custom_category)
     elif title and author_name:
         book = Book.objects.filter(
             title__iexact=title.strip(),
@@ -32,6 +33,11 @@ def create_book_listing(seller, data):
                 title=title.strip(),
             )
             book.authors.add(author)
+
+    if book and custom_category:
+        cats = process_category_input(custom_category)
+        if cats:
+            book.categories.add(*cats)
 
     listing = BookListing.objects.create(
         book=book,

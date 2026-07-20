@@ -155,3 +155,25 @@ class BookListingTests(APITestCase):
         self.assertEqual(data["listing_images"][0]["label"], "FRONT_COVER")
         self.assertIsNotNone(data["listing_images"][0]["image_url"])
 
+    def test_create_listing_with_custom_category(self):
+        """Ensure listing created with title, author, and category assigns category to newly created book."""
+        self.client.force_authenticate(user=self.seller)
+        url = "/api/v1/marketplace/listings/"
+        data = {
+            "title": "Designing Data-Intensive Applications",
+            "author": "Martin Kleppmann",
+            "category": "Distributed Systems",
+            "price": "750.00",
+            "condition": "LIKE_NEW",
+            "front_cover": self.get_dummy_file("front.gif"),
+            "back_cover": self.get_dummy_file("back.gif"),
+            "spine": self.get_dummy_file("spine.gif"),
+            "middle_page": self.get_dummy_file("middle.gif"),
+        }
+        response = self.client.post(url, data, format="multipart")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        book = Book.objects.get(title="Designing Data-Intensive Applications")
+        self.assertTrue(book.categories.filter(name="Distributed Systems").exists())
+
+

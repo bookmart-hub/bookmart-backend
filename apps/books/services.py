@@ -1,7 +1,9 @@
 from datetime import date
+import re
 
 import requests
 from django.db import transaction
+from django.db.models import Q
 
 from apps.books.models import Author, Book, Category
 
@@ -19,7 +21,6 @@ def parse_description(description):
 def parse_first_publish_date(date_str):
     if not date_str:
         return None
-    import re
     match = re.search(r"\b\d{4}\b", str(date_str))
     if match:
         year = int(match.group(0))
@@ -27,8 +28,43 @@ def parse_first_publish_date(date_str):
     return None
 
 
+def process_category_input(category_input):
+    """
+    Parses string or list input into Category model instances.
+    Accepts single string (e.g. 'Fiction' or 'Fiction, Exam Prep') or list of strings/IDs.
+    """
+    if not category_input:
+        return []
+
+    categories = []
+    items = []
+
+    if isinstance(category_input, str):
+        items = [c.strip() for c in category_input.split(",") if c.strip()]
+    elif isinstance(category_input, (list, tuple, set)):
+        items = list(category_input)
+
+    for item in items:
+        if isinstance(item, Category):
+            categories.append(item)
+        elif isinstance(item, int):
+            try:
+                cat = Category.objects.get(pk=item)
+                categories.append(cat)
+            except Category.DoesNotExist:
+                pass
+        elif isinstance(item, str) and item.strip():
+            name = item.strip()
+            if len(name) > 100:
+                name = name[:100]
+            cat, _ = Category.objects.get_or_create(name=name)
+            categories.append(cat)
+
+    return categories
+
+
 @transaction.atomic
-def import_book_from_openlibrary(work_key):
+def import_book_from_openlibrary(work_key, custom_category=None):
     document = get_book_document(work_key)
     title = document.get("title")
     covers = document.get("covers", [])
@@ -63,7 +99,7 @@ def import_book_from_openlibrary(work_key):
         },
     )
 
-    # ✅ ManyToMany assignment
+    # ManyToMany assignment
     book.authors.set(author_objects)
 
     # Parse and assign categories from subjects (limit to top 10)
@@ -77,18 +113,68 @@ def import_book_from_openlibrary(work_key):
         category, _ = Category.objects.get_or_create(name=subject_name)
         category_objects.append(category)
 
+    # Handle manual custom category input
+    if custom_category:
+        manual_cats = process_category_input(custom_category)
+        for cat in manual_cats:
+            if cat not in category_objects:
+                category_objects.append(cat)
+
     book.categories.set(category_objects)
 
     return book, created
 
 
-def get_book_document(work_key: str):
+@transaction.atomic
+def create_manual_book(data):
     """
-    Fetch complete OpenLibrary work document.
-    Example:
-    /works/OL27448W
+    Manually creates a Book entry in the catalog when not found in external search.
     """
+    title = data.get("title", "").strip()
 
+    author_input = data.get("authors") or data.get("author") or []
+    author_names = []
+    if isinstance(author_input, str):
+        author_names = [a.strip() for a in author_input.split(",") if a.strip()]
+    elif isinstance(author_input, (list, tuple)):
+        author_names = [str(a).strip() for a in author_input if str(a).strip()]
+
+    author_objects = []
+    for name in author_names:
+        author, _ = Author.objects.get_or_create(name=name)
+        author_objects.append(author)
+
+    published_year = data.get("published_year")
+    published_date = None
+    if published_year:
+        try:
+            published_date = date(int(published_year), 1, 1)
+        except (ValueError, TypeError):
+            pass
+
+    book = Book.objects.create(
+        title=title,
+        description=data.get("description", ""),
+        publisher=data.get("publisher", ""),
+        published_date=published_date,
+        isbn_13=data.get("isbn_13") or None,
+        isbn_10=data.get("isbn_10") or None,
+        cover_url=data.get("cover_url", ""),
+    )
+
+    if author_objects:
+        book.authors.set(author_objects)
+
+    cat_input = data.get("category") or data.get("categories")
+    if cat_input:
+        cats = process_category_input(cat_input)
+        if cats:
+            book.categories.set(cats)
+
+    return book
+
+
+def get_book_document(work_key: str):
     url = f"{OPENLIBRARY_WORK_URL}{work_key}.json"
     response = requests.get(
         url,
@@ -108,46 +194,96 @@ def get_author_document(author_key):
 
 
 def search_books(query: str, limit: int = 10):
-    params = {
-        "q": query,
-        "limit": limit,
-        "fields": "key,title,author_name,isbn,first_publish_year,cover_i",
-    }
-    response = requests.get(
-        OPENLIBRARY_SEARCH_URL,
-        params=params,
-        timeout=5,
-    )
-    response.raise_for_status()
-    data = response.json()
-
+    query_str = query.strip()
     results = []
+    seen_openlibrary_keys = set()
+    seen_isbns = set()
 
-    for book in data.get("docs", []):
-        isbn = book.get("isbn", [])
-
-        # Prefer ISBN-13
-        isbn13 = next(
-            (code for code in isbn if len(code) == 13 and code.startswith("978")),
-            None,
+    # 1. Search local database first
+    local_books = (
+        Book.objects.filter(
+            Q(title__icontains=query_str)
+            | Q(authors__name__icontains=query_str)
+            | Q(isbn_13__icontains=query_str)
+            | Q(isbn_10__icontains=query_str)
+            | Q(openlibrary_key=query_str)
         )
-        cover_id = book.get("cover_i")
+        .prefetch_related("authors", "categories")
+        .distinct()[:limit]
+    )
+
+    for b in local_books:
+        if b.openlibrary_key:
+            seen_openlibrary_keys.add(b.openlibrary_key)
+        if b.isbn_13:
+            seen_isbns.add(b.isbn_13)
+
         results.append(
             {
-                "openlibrary_key": book.get("key"),
-                "title": book.get("title"),
-                "authors": book.get("author_name", []),
-                "isbn13": isbn13,
-                "published_year": book.get("first_publish_year"),
-                "cover_url": (
-                    f"https://covers.openlibrary.org/b/id/{cover_id}-L.jpg"
-                    if cover_id
-                    else None
-                ),
+                "id": b.id,
+                "openlibrary_key": b.openlibrary_key,
+                "title": b.title,
+                "authors": [author.name for author in b.authors.all()],
+                "isbn13": b.isbn_13,
+                "published_year": b.published_date.year if b.published_date else None,
+                "cover_url": b.cover_url or None,
+                "categories": [category.name for category in b.categories.all()],
+                "is_local": True,
             }
         )
 
-    return results
+    # 2. Search OpenLibrary
+    try:
+        params = {
+            "q": query_str,
+            "limit": limit,
+            "fields": "key,title,author_name,isbn,first_publish_year,cover_i",
+        }
+        response = requests.get(
+            OPENLIBRARY_SEARCH_URL,
+            params=params,
+            timeout=5,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        for book in data.get("docs", []):
+            ol_key = book.get("key")
+            isbn = book.get("isbn", [])
+
+            isbn13 = next(
+                (code for code in isbn if len(code) == 13 and code.startswith("978")),
+                None,
+            )
+
+            # Avoid duplicates if local database already has this book
+            if ol_key and ol_key in seen_openlibrary_keys:
+                continue
+            if isbn13 and isbn13 in seen_isbns:
+                continue
+
+            cover_id = book.get("cover_i")
+            results.append(
+                {
+                    "id": None,
+                    "openlibrary_key": ol_key,
+                    "title": book.get("title"),
+                    "authors": book.get("author_name", []),
+                    "isbn13": isbn13,
+                    "published_year": book.get("first_publish_year"),
+                    "cover_url": (
+                        f"https://covers.openlibrary.org/b/id/{cover_id}-L.jpg"
+                        if cover_id
+                        else None
+                    ),
+                    "categories": [],
+                    "is_local": False,
+                }
+            )
+    except Exception:
+        pass
+
+    return results[:limit]
 
 
 def import_openlibrary_book(data):
@@ -197,3 +333,4 @@ def import_openlibrary_book(data):
         book.authors.set(authors)
 
     return book
+

@@ -23,8 +23,6 @@ class ProfileResponseSerializer(serializers.ModelSerializer):
             "date_of_birth",
             "college",
             "city_location",
-            "latitude",
-            "longitude",
         ]
 
 
@@ -42,8 +40,6 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             "bio",
             "college",
             "city_location",
-            "latitude",
-            "longitude",
         ]
 
     def validate_image(self, value):
@@ -52,16 +48,6 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Image size must not exceed 5 MB.")
             if not value.content_type.startswith("image/"):
                 raise serializers.ValidationError("Only image files are allowed.")
-        return value
-
-    def validate_latitude(self, value):
-        if value is not None and not (-90 <= value <= 90):
-            raise serializers.ValidationError("Latitude must be between -90 and 90.")
-        return value
-
-    def validate_longitude(self, value):
-        if value is not None and not (-180 <= value <= 180):
-            raise serializers.ValidationError("Longitude must be between -180 and 180.")
         return value
 
     def update(self, instance, validated_data):

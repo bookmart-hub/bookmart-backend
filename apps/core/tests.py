@@ -37,27 +37,34 @@ class ProfileTests(APITestCase):
         self.assertEqual(response.data["full_name"], "Original Name")
         self.assertEqual(response.data["date_of_birth"], "2000-01-01")
         self.assertNotIn("personalization_fields", response.data)
+        self.assertNotIn("latitude", response.data)
+        self.assertNotIn("longitude", response.data)
 
     def test_update_profile(self):
-        """Ensure updating full_name and date_of_birth updates User and Profile models."""
+        """Ensure updating full_name, date_of_birth, and city_location updates User and Profile models."""
         self.client.force_authenticate(user=self.user)
         url = "/api/v1/core/profile/me/"
         data = {
             "full_name": "Updated Name",
             "date_of_birth": "1995-12-31",
             "bio": "New Bio info",
+            "city_location": "Bangalore",
         }
         response = self.client.patch(url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.assertEqual(response.data["full_name"], "Updated Name")
         self.assertEqual(response.data["date_of_birth"], "1995-12-31")
+        self.assertEqual(response.data["city_location"], "Bangalore")
+        self.assertNotIn("latitude", response.data)
+        self.assertNotIn("longitude", response.data)
 
         self.user.refresh_from_db()
         self.profile.refresh_from_db()
         self.assertEqual(self.user.full_name, "Updated Name")
         self.assertEqual(self.profile.date_of_birth, date(1995, 12, 31))
         self.assertEqual(self.profile.bio, "New Bio info")
+        self.assertEqual(self.profile.city_location, "Bangalore")
 
     def test_update_profile_image_valid(self):
         """Ensure updating profile with a valid image uploads the file successfully."""

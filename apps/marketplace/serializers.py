@@ -96,6 +96,8 @@ class BookListingCreateSerializer(serializers.ModelSerializer):
     openlibrary_key = serializers.CharField(required=False, write_only=True)
     title = serializers.CharField(required=False, write_only=True)
     author = serializers.CharField(required=False, write_only=True)
+    category = serializers.CharField(required=False, write_only=True, allow_blank=True)
+    categories = serializers.ListField(child=serializers.CharField(), required=False, write_only=True)
 
     front_cover = serializers.ImageField(required=True, write_only=True)
     back_cover = serializers.ImageField(required=True, write_only=True)
@@ -116,6 +118,8 @@ class BookListingCreateSerializer(serializers.ModelSerializer):
             "openlibrary_key",
             "title",
             "author",
+            "category",
+            "categories",
             "front_cover",
             "back_cover",
             "spine",
