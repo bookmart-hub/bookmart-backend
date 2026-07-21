@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: bookmart_db_container
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME:-bookmart_db}
+      POSTGRES_USER: ${DB_USER:-bookmart_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-bookmart_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  web:
+    build: .
+    container_name: bookmart_web_container
+    restart: always
+    command: /app/entrypoint.sh
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=${DEBUG:-True}
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-un1rt-o2r0+7q^xhut2mrv279pvzq)jjjxx$2&odrq&73u@77n}
+      - ALLOWED_HOSTS=127.0.0.1,localhost,web
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=${DB_NAME:-bookmart_db}
+      - DB_USER=${DB_USER:-bookmart_user}
+      - DB_PASSWORD=${DB_PASSWORD:-bookmart_password}
+      - DB_HOST=db
+      - DB_PORT=5432
+    depends_on:
+      - db
+    volumes:
+      - media_data:/app/media
+
+volumes:
+  postgres_data:
+  media_data:

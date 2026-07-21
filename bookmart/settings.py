@@ -13,26 +13,39 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from datetime import timedelta
 from pathlib import Path
+import dj_database_url
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env file
+load_dotenv(BASE_DIR / ".env")
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-un1rt-o2r0+7q^xhut2mrv279pvzq)jjjxx$2&odrq&73u@77n"
+SECRET_KEY = os.getenv(
+    "SECRET_KEY",
+    "django-insecure-un1rt-o2r0+7q^xhut2mrv279pvzq)jjjxx$2&odrq&73u@77n",
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "t")
 
-ALLOWED_HOSTS = [
-    "127.0.0.1",
-    "localhost",
-    "192.168.1.3",
-    "bookmart-api.gourabacharjee.website",
-]
+allowed_hosts_env = os.getenv("ALLOWED_HOSTS")
+if allowed_hosts_env:
+    ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(",") if host.strip()]
+else:
+    ALLOWED_HOSTS = [
+        "127.0.0.1",
+        "localhost",
+        "192.168.1.3",
+        "bookmart-api.gourabacharjee.website",
+        ".onrender.com",
+    ]
 
 
 # Application definition
@@ -61,6 +74,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "debug_toolbar.middleware.DebugToolbarMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -102,16 +116,26 @@ CSRF_TRUSTED_ORIGINS = [
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "bookmart_db",
-        "USER": "bookmart_user",
-        "PASSWORD": "bookmart_password",
-        "HOST": "localhost",
-        "PORT": "5432",
+DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": os.getenv("DB_ENGINE", "django.db.backends.postgresql"),
+            "NAME": os.getenv("DB_NAME", "bookmart_db"),
+            "USER": os.getenv("DB_USER", "bookmart_user"),
+            "PASSWORD": os.getenv("DB_PASSWORD", "bookmart_password"),
+            "HOST": os.getenv("DB_HOST", "localhost"),
+            "PORT": os.getenv("DB_PORT", "5432"),
+        }
+    }
 
 
 # Password validation
@@ -220,7 +244,16 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 MEDIA_URL = "media/"
-
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
