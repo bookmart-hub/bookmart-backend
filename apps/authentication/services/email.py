@@ -19,7 +19,8 @@ class EmailNotificationService:
             msg.send([email])
         except Exception as e:
             logger.error(
-                f"Failed to dispatch transactional mail to {email}. Error: {str(e)}"
+                f"Failed to dispatch transactional mail to {email}. Error: {str(e)}",
+                exc_info=True,
             )
 
     @staticmethod

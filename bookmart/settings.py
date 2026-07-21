@@ -11,10 +11,21 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import socket
 from datetime import timedelta
 from pathlib import Path
 import dj_database_url
 from dotenv import load_dotenv
+
+# Force IPv4 DNS resolution to avoid [Errno 101] Network unreachable on IPv4-only cloud hosts (e.g. Render / Alpine musl)
+_orig_getaddrinfo = socket.getaddrinfo
+
+def _ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    if family == 0 or family == socket.AF_UNSPEC:
+        family = socket.AF_INET
+    return _orig_getaddrinfo(host, port, family, type, proto, flags)
+
+socket.getaddrinfo = _ipv4_getaddrinfo
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
