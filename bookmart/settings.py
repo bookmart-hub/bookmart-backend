@@ -14,16 +14,19 @@ import os
 import socket
 from datetime import timedelta
 from pathlib import Path
+
 import dj_database_url
 from dotenv import load_dotenv
 
 # Force IPv4 DNS resolution to avoid [Errno 101] Network unreachable on IPv4-only cloud hosts (e.g. Render / Alpine musl)
 _orig_getaddrinfo = socket.getaddrinfo
 
+
 def _ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
     if family == 0 or family == socket.AF_UNSPEC:
         family = socket.AF_INET
     return _orig_getaddrinfo(host, port, family, type, proto, flags)
+
 
 socket.getaddrinfo = _ipv4_getaddrinfo
 
@@ -48,7 +51,9 @@ DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "t")
 
 allowed_hosts_env = os.getenv("ALLOWED_HOSTS")
 if allowed_hosts_env:
-    ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(",") if host.strip()]
+    ALLOWED_HOSTS = [
+        host.strip() for host in allowed_hosts_env.split(",") if host.strip()
+    ]
 else:
     ALLOWED_HOSTS = [
         "127.0.0.1",
@@ -231,7 +236,9 @@ if DEBUG:
 
 
 # Mail
-EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
+)
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
@@ -281,21 +288,27 @@ elif STORAGE_PROVIDER == "s3":
 else:
     DEFAULT_STORAGE_BACKEND = "django.core.files.storage.FileSystemStorage"
 
+from whitenoise.storage import CompressedManifestStaticFilesStorage
+
+
+class NonStrictCompressedManifestStaticFilesStorage(
+    CompressedManifestStaticFilesStorage
+):
+    manifest_strict = False
+
+
 STORAGES = {
     "default": {
         "BACKEND": DEFAULT_STORAGE_BACKEND,
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": "bookmart.settings.NonStrictCompressedManifestStaticFilesStorage",
     },
 }
 
 # Compatibility settings for legacy third-party libraries (like django-cloudinary-storage) under Django 6.0
 DEFAULT_FILE_STORAGE = DEFAULT_STORAGE_BACKEND
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
-
-# Prevent WhiteNoise from failing collectstatic when source maps (.map) or other minor assets are missing
-WHITENOISE_MANIFEST_STRICT = False
+STATICFILES_STORAGE = "bookmart.settings.NonStrictCompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
