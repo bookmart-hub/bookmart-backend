@@ -290,5 +290,9 @@ STORAGES = {
     },
 }
 
+# Compatibility settings for legacy third-party libraries (like django-cloudinary-storage) under Django 6.0
+DEFAULT_FILE_STORAGE = DEFAULT_STORAGE_BACKEND
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
 MEDIA_URL = "media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")

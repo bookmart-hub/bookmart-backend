@@ -32,14 +32,14 @@ from apps.marketplace.models import BookListing
     retrieve=extend_schema(
         summary="Retrieve category details and price-ranked books",
         description="Fetch category details by ID or slug. Returns all canonical books in this category with active listings ranked by price ascending (cheapest first).",
-        parameters=[
-            OpenApiParameter(
-                name="pk",
-                type=str,
-                location=OpenApiParameter.PATH,
-                description="Category ID (e.g. 1) or Category Slug (e.g. 'competitive-exams').",
-            )
-        ],
+        # parameters=[
+        #     OpenApiParameter(
+        #         name="pk",
+        #         type=str,
+        #         location=OpenApiParameter.PATH,
+        #         description="Category ID (e.g. 1) or Category Slug (e.g. 'competitive-exams').",
+        #     )
+        # ],
         responses={200: CategoryDetailSerializer},
         tags=["Categories"],
     ),
@@ -48,6 +48,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API ViewSet for browsing and retrieving book categories and category screens.
     """
+
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     queryset = Category.objects.all()
 
@@ -71,7 +72,11 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
             queryset=Book.objects.prefetch_related(
                 "authors",
                 "categories",
-                Prefetch("listings", queryset=available_listings_qs, to_attr="ranked_listings"),
+                Prefetch(
+                    "listings",
+                    queryset=available_listings_qs,
+                    to_attr="ranked_listings",
+                ),
             ).distinct(),
             to_attr="category_books",
         )
@@ -129,7 +134,9 @@ class BookImportAPIView(APIView):
 
     @extend_schema(
         summary="Import book from OpenLibrary",
-        description=("Imports a book using OpenLibrary work key. Accepts an optional custom category to assign if missing or unsuitable."),
+        description=(
+            "Imports a book using OpenLibrary work key. Accepts an optional custom category to assign if missing or unsuitable."
+        ),
         request=BookImportSerializer,
         responses={
             200: BookCreatedResponseSerializer,
@@ -147,7 +154,9 @@ class BookImportAPIView(APIView):
         custom_category = serializer.validated_data.get("category")
 
         try:
-            book, created = import_book_from_openlibrary(work_key, custom_category=custom_category)
+            book, created = import_book_from_openlibrary(
+                work_key, custom_category=custom_category
+            )
 
         except Exception as e:
             return Response(
@@ -209,5 +218,3 @@ class BookManualCreateAPIView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
-
-
