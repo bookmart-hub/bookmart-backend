@@ -72,7 +72,6 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.messages",
-    "cloudinary_storage",
     "django.contrib.staticfiles",
     "cloudinary",
     "rest_framework",
@@ -294,7 +293,17 @@ from whitenoise.storage import CompressedManifestStaticFilesStorage
 class NonStrictCompressedManifestStaticFilesStorage(
     CompressedManifestStaticFilesStorage
 ):
-    manifest_strict = False
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.manifest_strict = False
+
+    def hashed_name(self, name, content=None, filename=None):
+        try:
+            return super().hashed_name(name, content, filename)
+        except ValueError:
+            if not self.manifest_strict:
+                return name
+            raise
 
 
 STORAGES = {
