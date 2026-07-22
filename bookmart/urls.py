@@ -26,11 +26,14 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+from apps.core.views.health import HealthCheckView
+
 admin.site.site_header = "Bookmart Admin Panel"
 admin.site.site_title = "Bookmart"
 admin.site.index_title = "Admin Panel"
 
 urlpatterns = [
+    path("health/", HealthCheckView.as_view(), name="root-health-check"),
     path("admin/", admin.site.urls),
     path("api-auth/", include("rest_framework.urls", namespace="rest_framework")),
     path("api/v1/", include("apps.authentication.urls")),

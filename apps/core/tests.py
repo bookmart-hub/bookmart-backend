@@ -105,3 +105,22 @@ class ProfileTests(APITestCase):
         response = self.client.patch(url, data, format="multipart")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("image", response.data)
+
+
+class HealthCheckTests(APITestCase):
+    def test_root_health_check(self):
+        """Ensure root /health/ endpoint returns healthy status."""
+        url = "/health/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "healthy")
+        self.assertIn("services", response.data)
+        self.assertEqual(response.data["services"]["database"]["status"], "up")
+        self.assertEqual(response.data["services"]["storage"]["status"], "up")
+
+    def test_api_health_check(self):
+        """Ensure /api/v1/core/health endpoint returns healthy status."""
+        url = "/api/v1/core/health"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "healthy")
