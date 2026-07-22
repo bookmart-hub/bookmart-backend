@@ -95,8 +95,13 @@ class HealthCheckView(APIView):
         # 2. Storage Check (dynamic provider based on settings)
         storage_provider = os.getenv("STORAGE_PROVIDER", "local").lower()
         try:
-            file_name = f"healthcheck_ping_{int(time.time())}.txt"
-            file_content = b"ping"
+            # Use a valid 1x1 transparent pixel GIF to ensure compatibility with image validation rules in Cloudinary
+            file_name = f"healthcheck_ping_{int(time.time())}.gif"
+            file_content = (
+                b"\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00"
+                b"\xff\xff\xff\x21\xf9\x04\x01\x00\x00\x00\x00\x2c\x00\x00\x00\x00"
+                b"\x01\x00\x01\x00\x00\x02\x02\x4c\x01\x00\x3b"
+            )
             
             # Simple write, verify exists, and delete check
             path = default_storage.save(file_name, ContentFile(file_content))
