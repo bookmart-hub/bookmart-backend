@@ -13,7 +13,9 @@ attrs==26.1.0 \
 certifi==2026.6.17 \
     --hash=sha256:024c88eeec92ca068db80f02b8b07c9cef7b9fe261d1d535abfd5abd6f6af432 \
     --hash=sha256:2227dcbaafe0d2f59279d1762ddddc37783ed4354594f194ffc31d20f41fc3db
-    # via requests
+    # via
+    #   cloudinary
+    #   requests
 charset-normalizer==3.4.9 \
     --hash=sha256:0327fcd59a935777d83410750c50600ee9571af2846f71ce40f25b13da1ef380 \
     --hash=sha256:03d07803992c6c7bbc976327f34b18b6160327fc81cb82c9d504720ac0be3b62 \
@@ -70,6 +72,12 @@ charset-normalizer==3.4.9 \
     --hash=sha256:fa36ec09ef71d158186bc79e359ff5fdd6e7996fe8ab638f00d6b93139ba4fcf \
     --hash=sha256:fe2c7201c642b7c308f1675355ad7ff7b66acfe3541625efe5a3ad38f29d6115
     # via requests
+cloudinary==1.45.0 \
+    --hash=sha256:46c333101811841cf446c46054f4d9b507c2fa34c25152d1e922586c3b746196 \
+    --hash=sha256:711404bfbdf87965afbefdb747ae78a03188b513846cccb0c1f8a8c612e375ba
+    # via
+    #   bookmart-backend
+    #   django-cloudinary-storage
 diff-match-patch==20241021 \
     --hash=sha256:93cea333fb8b2bc0d181b0de5e16df50dd344ce64828226bda07728818936782 \
     --hash=sha256:beae57a99fa48084532935ee2968b8661db861862ec82c6f21f4acdd6d835073
@@ -92,6 +100,10 @@ django==6.0.6 \
     #   drf-nested-routers
     #   drf-spectacular
     #   drf-spectacular-sidecar
+django-cloudinary-storage==0.3.0 \
+    --hash=sha256:95c855c7334141b2a485ea7eb5716de87bb6ce0d848e205debb3a3ab7bbbd49a \
+    --hash=sha256:debd403a5f225c9d35c4af508ff4abc7fdc262129464134b60b2feeb2c44d3e1
+    # via bookmart-backend
 django-debug-toolbar==7.0.0 \
     --hash=sha256:656161388ce48384276342eeb16d532113ec670816fa1546cc3753730aa51b3d \
     --hash=sha256:ef7494c5b459c149e87cc2da88d86e944064945e86bd7b2d879093586b5fefbf
@@ -318,7 +330,9 @@ referencing==0.37.0 \
 requests==2.34.2 \
     --hash=sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0 \
     --hash=sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed
-    # via bookmart-backend
+    # via
+    #   bookmart-backend
+    #   django-cloudinary-storage
 rpds-py==2026.5.1 \
     --hash=sha256:036a36a87fb1cd3b214d11c4b3c4f7d2ddad933625dca1c900b56a057c07740a \
     --hash=sha256:0408a24e44feb919423dc6d9da677cb5cddb894d2ca9e763967d156d9c60fab4 \
@@ -445,6 +459,10 @@ ruff==0.15.18 \
     --hash=sha256:a81beadbbff2c9c245561ae3f77b16709d87f35eec650d0501679239d3449b22 \
     --hash=sha256:b2c9257fcbd4a3e5b977a1904e6facca016bafe2edc17df24db67cfaee03b4e4 \
     --hash=sha256:dac80dc8d26b2257dbefabed62f5d255c3937b4ccb122da1fc634794fa3578b3
+six==1.17.0 \
+    --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274 \
+    --hash=sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81
+    # via cloudinary
 sqlparse==0.5.5 \
     --hash=sha256:12a08b3bf3eec877c519589833aed092e2444e68240a3577e8e26148acc7b1ba \
     --hash=sha256:e20d4a9b0b8585fdf63b10d30066c7c94c5d7a7ec47c889a2d83a3caa93ff28e
@@ -474,7 +492,9 @@ uritemplate==4.2.0 \
 urllib3==2.7.0 \
     --hash=sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c \
     --hash=sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897
-    # via requests
+    # via
+    #   cloudinary
+    #   requests
 whitenoise==6.12.0 \
     --hash=sha256:f723ebb76a112e98816ff80fcea0a6c9b8ecde835f8ddda25df7a30a3c2db6ad \
     --hash=sha256:fc5e8c572e33ebf24795b47b6a7da8da3c00cff2349f5b04c02f28d0cc5a3cc2
