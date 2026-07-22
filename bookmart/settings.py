@@ -294,5 +294,8 @@ STORAGES = {
 DEFAULT_FILE_STORAGE = DEFAULT_STORAGE_BACKEND
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
+# Prevent WhiteNoise from failing collectstatic when source maps (.map) or other minor assets are missing
+WHITENOISE_MANIFEST_STRICT = False
+
 MEDIA_URL = "media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
