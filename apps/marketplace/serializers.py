@@ -149,3 +149,115 @@ class BookListingCreateSerializer(serializers.ModelSerializer):
             )
 
         return attrs
+
+
+class BookListingUpdateSerializer(serializers.ModelSerializer):
+    book_id = serializers.IntegerField(required=False, write_only=True)
+    openlibrary_key = serializers.CharField(required=False, write_only=True)
+    title = serializers.CharField(required=False, write_only=True)
+    author = serializers.CharField(required=False, write_only=True)
+    category = serializers.CharField(required=False, write_only=True, allow_blank=True)
+    categories = serializers.ListField(child=serializers.CharField(), required=False, write_only=True)
+
+    front_cover = serializers.ImageField(required=False, write_only=True, allow_null=True)
+    back_cover = serializers.ImageField(required=False, write_only=True, allow_null=True)
+    spine = serializers.ImageField(required=False, write_only=True, allow_null=True)
+    middle_page = serializers.ImageField(required=False, write_only=True, allow_null=True)
+    damage_1 = serializers.ImageField(required=False, write_only=True, allow_null=True)
+    damage_2 = serializers.ImageField(required=False, write_only=True, allow_null=True)
+
+    removed_image_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        write_only=True,
+        default=list,
+    )
+
+    class Meta:
+        model = BookListing
+        fields = [
+            "price",
+            "condition",
+            "condition_notes",
+            "status",
+            "latitude",
+            "longitude",
+            "book_id",
+            "openlibrary_key",
+            "title",
+            "author",
+            "category",
+            "categories",
+            "front_cover",
+            "back_cover",
+            "spine",
+            "middle_page",
+            "damage_1",
+            "damage_2",
+            "removed_image_ids",
+        ]
+
+    def validate(self, attrs):
+        book_id = attrs.get("book_id")
+        openlibrary_key = attrs.get("openlibrary_key")
+        title = attrs.get("title")
+        author = attrs.get("author")
+
+        book_fields_provided = any([book_id, openlibrary_key, title, author])
+        if book_fields_provided:
+            has_explicit_book = any([book_id, openlibrary_key])
+            has_manual_book = title and author
+            has_partial_manual = (title and not author) or (author and not title)
+
+            if not any([has_explicit_book, has_manual_book]):
+                if has_partial_manual:
+                    raise serializers.ValidationError(
+                        "To update book details, you must provide both 'title' and 'author'."
+                    )
+                raise serializers.ValidationError(
+                    "Invalid book identifier combination."
+                )
+
+        return attrs
+
+    def validate_price(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Price cannot be negative.")
+        return value
+
+    def validate_removed_image_ids(self, value):
+        listing = self.instance
+        if listing and value:
+            valid_ids = set(listing.listing_images.values_list("id", flat=True))
+            invalid_ids = set(value) - valid_ids
+            if invalid_ids:
+                raise serializers.ValidationError(
+                    f"Image IDs {sorted(invalid_ids)} do not belong to this listing."
+                )
+        return value
+
+    def _validate_image_file(self, value):
+        if value is not None and value:
+            if value.size > 5 * 1024 * 1024:
+                raise serializers.ValidationError("Image size must not exceed 5 MB.")
+            if not value.content_type.startswith("image/"):
+                raise serializers.ValidationError("Only image files are allowed.")
+        return value
+
+    def validate_front_cover(self, value):
+        return self._validate_image_file(value)
+
+    def validate_back_cover(self, value):
+        return self._validate_image_file(value)
+
+    def validate_spine(self, value):
+        return self._validate_image_file(value)
+
+    def validate_middle_page(self, value):
+        return self._validate_image_file(value)
+
+    def validate_damage_1(self, value):
+        return self._validate_image_file(value)
+
+    def validate_damage_2(self, value):
+        return self._validate_image_file(value)
