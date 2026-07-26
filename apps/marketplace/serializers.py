@@ -95,6 +95,19 @@ class BookListingResponseSerializer(serializers.ModelSerializer):
         ]
 
 
+class NearbyBookListingSerializer(BookListingResponseSerializer):
+    """Extends the standard response with a computed distance_km field.
+
+    Used by the /nearby/ endpoint. The distance_km field is annotated
+    on the queryset by the get_nearby_listings service function.
+    """
+
+    distance_km = serializers.FloatField(read_only=True)
+
+    class Meta(BookListingResponseSerializer.Meta):
+        fields = BookListingResponseSerializer.Meta.fields + ["distance_km"]
+
+
 class BookListingCreateSerializer(serializers.ModelSerializer):
     book_id = serializers.IntegerField(required=False, write_only=True)
     openlibrary_key = serializers.CharField(required=False, write_only=True)
