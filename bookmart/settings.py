@@ -86,6 +86,7 @@ INSTALLED_APPS = [
     "apps.authentication",
     "apps.books",
     "apps.marketplace",
+    "apps.reports",
 ]
 
 MIDDLEWARE = [
