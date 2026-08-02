@@ -87,10 +87,11 @@ INSTALLED_APPS = [
     "apps.books",
     "apps.marketplace",
     "apps.reports",
-    "apps.requirements",
-    "apps.favorites",
-    "apps.home_feed",
-]
+      "apps.requirements",
+      "apps.favorites",
+      "apps.home_feed",
+      "apps.notifications",
+  ]
 
 MIDDLEWARE = [
     "debug_toolbar.middleware.DebugToolbarMiddleware",
