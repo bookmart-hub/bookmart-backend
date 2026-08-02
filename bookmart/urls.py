@@ -41,6 +41,11 @@ urlpatterns = [
     path("api/v1/book/", include("apps.books.urls")),
     path("api/v1/marketplace/", include("apps.marketplace.urls")),
     path("api/v1/", include("apps.reports.urls")),
+    path("api/v1/", include("apps.requirements.urls")),
+    path("api/v1/", include("apps.favorites.urls")),
+    path("api/v1/", include("apps.home_feed.urls")),
+    path("api/v1/", include("apps.notifications.urls")),
+    path("api/v1/", include("apps.reviews.urls")),
     path("docs/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "docs/swagger/",

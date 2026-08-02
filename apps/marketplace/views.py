@@ -1,3 +1,4 @@
+from django.db.models import Count, Exists, OuterRef, Value, BooleanField
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
@@ -84,12 +85,26 @@ class BookListingViewSet(viewsets.ModelViewSet):
     ]
 
     def get_queryset(self):
-        return (
-            BookListing.objects.select_related("book", "seller", "seller__profile")
-            .prefetch_related("book__authors", "listing_images")
-            .all()
-            .order_by("-created_at")
+        qs = BookListing.objects.select_related(
+            "book", "seller", "seller__profile"
+        ).prefetch_related("book__authors", "listing_images")
+
+        qs = qs.annotate(
+            favorite_count=Count("wishlisted_by"),
         )
+
+        if self.request.user.is_authenticated:
+            user_fav = Wishlist.objects.filter(
+                user=self.request.user,
+                listing=OuterRef("pk"),
+            )
+            qs = qs.annotate(is_favorited=Exists(user_fav))
+        else:
+            qs = qs.annotate(
+                is_favorited=Value(False, output_field=BooleanField())
+            )
+
+        return qs.all()
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -436,6 +451,19 @@ class BookListingViewSet(viewsets.ModelViewSet):
             search=search,
             ordering=ordering,
         )
+
+        # ── Annotate favorite data ──
+        qs = qs.annotate(favorite_count=Count("wishlisted_by"))
+        if request.user.is_authenticated:
+            user_fav = Wishlist.objects.filter(
+                user=request.user,
+                listing=OuterRef("pk"),
+            )
+            qs = qs.annotate(is_favorited=Exists(user_fav))
+        else:
+            qs = qs.annotate(
+                is_favorited=Value(False, output_field=BooleanField())
+            )
 
         # ── Paginate ──
         paginator = NearbyListingPagination()

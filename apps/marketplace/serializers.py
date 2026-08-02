@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.db.models import Count
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
@@ -76,6 +77,8 @@ class BookListingResponseSerializer(serializers.ModelSerializer):
     book = BookNestedSerializer(read_only=True)
     seller = SellerNestedSerializer(read_only=True)
     listing_images = BookListingImageSerializer(many=True, read_only=True)
+    favorite_count = serializers.SerializerMethodField()
+    is_favorited = serializers.SerializerMethodField()
 
     class Meta:
         model = BookListing
@@ -90,9 +93,26 @@ class BookListingResponseSerializer(serializers.ModelSerializer):
             "listing_images",
             "latitude",
             "longitude",
+            "favorite_count",
+            "is_favorited",
             "created_at",
             "updated_at",
         ]
+
+    @extend_schema_field(serializers.IntegerField)
+    def get_favorite_count(self, obj):
+        if hasattr(obj, "favorite_count"):
+            return obj.favorite_count
+        return Wishlist.objects.filter(listing=obj).count()
+
+    @extend_schema_field(serializers.BooleanField)
+    def get_is_favorited(self, obj):
+        if hasattr(obj, "is_favorited"):
+            return obj.is_favorited
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            return Wishlist.objects.filter(user=request.user, listing=obj).exists()
+        return False
 
 
 class NearbyBookListingSerializer(BookListingResponseSerializer):
