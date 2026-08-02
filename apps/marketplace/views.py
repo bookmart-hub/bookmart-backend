@@ -6,18 +6,22 @@ from drf_spectacular.utils import (
     extend_schema,
     extend_schema_view,
 )
-from rest_framework import filters, permissions, status, viewsets
+from rest_framework import filters, mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
-from apps.marketplace.models import BookListing
+from apps.marketplace.models import BookListing, Wishlist, PlatformNotification, BookContactLedger
 from apps.marketplace.pagination import NearbyListingPagination
 from apps.marketplace.serializers import (
     BookListingCreateSerializer,
     BookListingResponseSerializer,
     BookListingUpdateSerializer,
     NearbyBookListingSerializer,
+    WishlistSerializer,
+    WishlistCreateSerializer,
+    PlatformNotificationSerializer,
+    BookContactLedgerSerializer,
 )
 from apps.marketplace.services import (
     DEFAULT_RADIUS_KM,
@@ -84,6 +88,7 @@ class BookListingViewSet(viewsets.ModelViewSet):
             BookListing.objects.select_related("book", "seller", "seller__profile")
             .prefetch_related("book__authors", "listing_images")
             .all()
+            .order_by("-created_at")
         )
 
     def get_serializer_class(self):
@@ -447,4 +452,94 @@ class BookListingViewSet(viewsets.ModelViewSet):
             qs, many=True, context={"request": request}
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List user wishlist",
+        description="Retrieve all book listings saved in the current user's wishlist.",
+        tags=["Wishlist"],
+    ),
+    create=extend_schema(
+        summary="Add to wishlist",
+        description="Add a book listing to the current user's wishlist.",
+        request=WishlistCreateSerializer,
+        responses={201: WishlistSerializer},
+        tags=["Wishlist"],
+    ),
+    destroy=extend_schema(
+        summary="Remove from wishlist",
+        description="Remove a book listing from the current user's wishlist.",
+        tags=["Wishlist"],
+    ),
+)
+class WishlistViewSet(viewsets.ModelViewSet):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Wishlist.objects.filter(user=self.request.user).select_related(
+            "listing", "listing__book", "listing__seller", "listing__seller__profile"
+        ).prefetch_related("listing__listing_images").order_by("-created_at")
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return WishlistCreateSerializer
+        return WishlistSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List notifications",
+        description="Retrieve in-app notifications for the current user.",
+        tags=["Notifications"],
+    ),
+    partial_update=extend_schema(
+        summary="Mark notification as read",
+        description="Mark a notification as read/unread.",
+        request=PlatformNotificationSerializer,
+        responses={200: PlatformNotificationSerializer},
+        tags=["Notifications"],
+    ),
+)
+class PlatformNotificationViewSet(
+    viewsets.GenericViewSet, mixins.ListModelMixin, mixins.UpdateModelMixin
+):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = PlatformNotificationSerializer
+    queryset = PlatformNotification.objects.all()
+
+    def get_queryset(self):
+        return PlatformNotification.objects.filter(user=self.request.user).select_related(
+            "related_listing", "action_trigger_user", "action_trigger_user__profile"
+        )
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List deal contacts ledger",
+        description="Retrieve logged transactions/contacts ledger for the user.",
+        tags=["Contacts Inbox"],
+    ),
+    create=extend_schema(
+        summary="Log contact initiation",
+        description="Log a deal ledger contact entry when initiating a transaction via WhatsApp.",
+        request=BookContactLedgerSerializer,
+        responses={201: BookContactLedgerSerializer},
+        tags=["Contacts Inbox"],
+    ),
+)
+class BookContactLedgerViewSet(
+    viewsets.GenericViewSet, mixins.ListModelMixin, mixins.CreateModelMixin
+):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = BookContactLedgerSerializer
+
+    def get_queryset(self):
+        return BookContactLedger.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 

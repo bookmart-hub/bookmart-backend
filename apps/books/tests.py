@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.books.models import Category
+from apps.books.models import Category, Book, Author
 from apps.books.services import import_book_from_openlibrary
 
 User = get_user_model()
@@ -261,9 +261,10 @@ class CategoryViewSetTests(APITestCase):
         url = "/api/v1/book/categories/"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["name"], "Competitive Exams")
-        self.assertEqual(response.data[0]["subtitle"], "Prepare to Succeed")
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["name"], "Competitive Exams")
+        self.assertEqual(response.data["results"][0]["subtitle"], "Prepare to Succeed")
 
     def test_retrieve_category_detail_ranked_by_price(self):
         """Ensure retrieving category returns canonical books with listings ranked by price ascending (cheapest first)."""
@@ -288,5 +289,90 @@ class CategoryViewSetTests(APITestCase):
         self.assertEqual(len(listings), 2)
         self.assertEqual(listings[0]["price"], "400.00")
         self.assertEqual(listings[1]["price"], "500.00")
+
+
+class BookViewSetTests(APITestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="buyer@example.com",
+            full_name="Buyer User",
+            password="testpassword123",
+        )
+        self.category = Category.objects.create(
+            name="Competitive Exams",
+            subtitle="Prepare to Succeed",
+            icon="🚀",
+        )
+        self.other_category = Category.objects.create(
+            name="Fiction",
+            subtitle="Explore Worlds",
+            icon="📚",
+        )
+
+        from apps.books.models import Book
+        self.book1 = Book.objects.create(
+            title="Quantitative Aptitude",
+            published_date=date(2020, 1, 1),
+        )
+        self.book1.categories.add(self.category)
+
+        self.book2 = Book.objects.create(
+            title="A Song of Ice and Fire",
+            published_date=date(1996, 8, 1),
+        )
+        self.book2.categories.add(self.other_category)
+
+    def test_list_books_paginated(self):
+        """Ensure GET /api/v1/book/books/ returns paginated books."""
+        url = "/api/v1/book/books/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 2)
+        self.assertEqual(len(response.data["results"]), 2)
+
+    def test_filter_books_by_category_slug(self):
+        """Ensure GET /api/v1/book/books/?categories__slug=... filters books."""
+        url = "/api/v1/book/books/?categories__slug=competitive-exams"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["title"], "Quantitative Aptitude")
+
+    def test_search_books(self):
+        """Ensure GET /api/v1/book/books/?search=... searches books by title."""
+        url = "/api/v1/book/books/?search=Song"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["title"], "A Song of Ice and Fire")
+
+    def test_retrieve_book(self):
+        """Ensure GET /api/v1/book/books/{id}/ returns book details."""
+        url = f"/api/v1/book/books/{self.book1.id}/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["title"], "Quantitative Aptitude")
+
+
+class AuthorViewSetTests(APITestCase):
+
+    def setUp(self):
+        self.author1 = Author.objects.create(name="Author One", designation="Novelist", bio="Bio one")
+        self.author2 = Author.objects.create(name="Author Two", designation="Poet", bio="Bio two")
+
+    def test_list_authors(self):
+        url = "/api/v1/book/authors/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 2)
+        self.assertEqual(response.data["results"][0]["name"], "Author One")
+
+    def test_retrieve_author(self):
+        url = f"/api/v1/book/authors/{self.author1.id}/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["name"], "Author One")
+
 
 

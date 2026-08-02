@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.books.models import Author, Book
-from apps.marketplace.models import BookListing, BookListingImage
+from apps.marketplace.models import BookListing, BookListingImage, Wishlist, PlatformNotification, BookContactLedger
 
 User = get_user_model()
 
@@ -147,8 +147,9 @@ class BookListingTests(APITestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        self.assertEqual(len(response.data), 1)
-        data = response.data[0]
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(len(response.data["results"]), 1)
+        data = response.data["results"][0]
         self.assertEqual(data["book"]["title"], "Introduction to Algorithm")
         self.assertEqual(data["seller"]["full_name"], "Seller User")
         self.assertEqual(len(data["listing_images"]), 1)
@@ -510,5 +511,79 @@ class BookListingUpdateTests(APITestCase):
         listing.refresh_from_db()
         self.assertEqual(listing.price, original_price)
         self.assertEqual(listing.condition, "LIKE_NEW")
+
+
+class WishlistAndNotificationTests(APITestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="testuser@example.com",
+            full_name="Test User",
+            password="testpassword123",
+        )
+        self.seller = User.objects.create_user(
+            email="seller@example.com",
+            full_name="Seller User",
+            password="testpassword123",
+        )
+        self.book = Book.objects.create(title="Algorithms 101")
+        self.listing = BookListing.objects.create(
+            book=self.book,
+            seller=self.seller,
+            price=500.00,
+            condition="GOOD",
+            status="AVAILABLE",
+        )
+
+    def test_wishlist_flow(self):
+        self.client.force_authenticate(user=self.user)
+        # Create wishlist item
+        url = "/api/v1/marketplace/wishlist/"
+        response = self.client.post(url, {"listing": self.listing.id})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Wishlist.objects.count(), 1)
+
+        # List wishlist items
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+
+        # Delete wishlist item
+        wishlist_id = response.data["results"][0]["id"]
+        response = self.client.delete(f"{url}{wishlist_id}/")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(Wishlist.objects.count(), 0)
+
+    def test_notifications_list(self):
+        self.client.force_authenticate(user=self.user)
+        # Create a notification
+        notification = PlatformNotification.objects.create(
+            user=self.user,
+            notification_type="PRICE_DROP",
+            title="Price Drop Alert",
+            body="Introduction to Algorithm price dropped!",
+        )
+        url = "/api/v1/marketplace/notifications/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+
+        # Mark as read
+        response = self.client.patch(f"{url}{notification.id}/", {"is_read": True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_read"])
+
+    def test_contact_ledger(self):
+        self.client.force_authenticate(user=self.user)
+        url = "/api/v1/marketplace/contacts/"
+        data = {
+            "contact_person_name": "Seller User",
+            "book_title": "Algorithms 101",
+            "deal_type": "BOUGHT",
+            "price_recorded": "500.00",
+        }
+        response = self.client.post(url, data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(BookContactLedger.objects.count(), 1)
 
 

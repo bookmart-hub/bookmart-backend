@@ -6,10 +6,18 @@ from apps.books.views import (
     BookManualCreateAPIView,
     BookSearchAPIView,
     CategoryViewSet,
+    BookViewSet,
+    ReviewViewSet,
+    RecommendationViewSet,
+    AuthorViewSet,
 )
 
 router = DefaultRouter()
 router.register("categories", CategoryViewSet, basename="category")
+router.register("books", BookViewSet, basename="book")
+router.register("reviews", ReviewViewSet, basename="review")
+router.register("recommendations", RecommendationViewSet, basename="recommendation")
+router.register("authors", AuthorViewSet, basename="author")
 
 urlpatterns = [
     path("", include(router.urls)),

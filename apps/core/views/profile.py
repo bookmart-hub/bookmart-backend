@@ -31,9 +31,13 @@ class ProfileViewSet(
     ]
 
     def get_object(self):
+        if self.action == "retrieve":
+            return super().get_object()
         return self.request.user.profile
 
     def get_queryset(self):
+        if self.action == "retrieve":
+            return Profile.objects.all()
         return Profile.objects.filter(user=self.request.user)
 
     def get_serializer_class(self):

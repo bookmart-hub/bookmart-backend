@@ -333,4 +333,3 @@ def import_openlibrary_book(data):
         book.authors.set(authors)
 
     return book
-

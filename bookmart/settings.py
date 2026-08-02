@@ -99,6 +99,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.core.middleware.RequestResponseLoggerMiddleware",
 ]
 
 INTERNAL_IPS = [
@@ -229,6 +230,8 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
         "rest_framework.renderers.BrowsableAPIRenderer",
     ],
+    "DEFAULT_PAGINATION_CLASS": "apps.core.pagination.BookmartPagination",
+    "PAGE_SIZE": 20,
 }
 
 if DEBUG:

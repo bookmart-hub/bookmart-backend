@@ -1,7 +1,7 @@
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from apps.books.models import Category
+from apps.books.models import Author, Book, Category, Review
 
 
 class CategoryListSerializer(serializers.ModelSerializer):
@@ -249,3 +249,47 @@ class BookManualCreateSerializer(serializers.Serializer):
                 "At least one author must be specified in 'author' or 'authors'."
             )
         return attrs
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Review
+        fields = ["id", "book", "user", "rating", "comment", "created_at"]
+
+    @extend_schema_field(serializers.CharField())
+    def get_user(self, obj):
+        return obj.user.full_name
+
+
+class ReviewCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Review
+        fields = ["book", "rating", "comment"]
+
+    def validate_rating(self, value):
+        if value < 1 or value > 5:
+            raise serializers.ValidationError("Rating must be between 1 and 5.")
+        return value
+
+    def validate(self, attrs):
+        user = self.context["request"].user
+        book = attrs.get("book")
+        if Review.objects.filter(user=user, book=book).exists():
+            raise serializers.ValidationError("You have already reviewed this book.")
+        return attrs
+
+
+class AuthorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Author
+        fields = [
+            "id",
+            "name",
+            "designation",
+            "bio",
+            "image_url",
+            "rating",
+            "created_at",
+        ]

@@ -3,7 +3,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.books.models import Author, Book
-from apps.marketplace.models import BookListing, BookListingImage
+from apps.marketplace.models import BookListing, BookListingImage, Wishlist, PlatformNotification, BookContactLedger
 
 User = get_user_model()
 
@@ -274,3 +274,55 @@ class BookListingUpdateSerializer(serializers.ModelSerializer):
 
     def validate_damage_2(self, value):
         return self._validate_image_file(value)
+
+
+class WishlistSerializer(serializers.ModelSerializer):
+    listing = BookListingResponseSerializer(read_only=True)
+
+    class Meta:
+        model = Wishlist
+        fields = ["id", "listing", "created_at"]
+
+
+class WishlistCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Wishlist
+        fields = ["listing"]
+
+    def validate(self, attrs):
+        user = self.context["request"].user
+        listing = attrs.get("listing")
+        if Wishlist.objects.filter(user=user, listing=listing).exists():
+            raise serializers.ValidationError("This listing is already in your wishlist.")
+        return attrs
+
+
+class PlatformNotificationSerializer(serializers.ModelSerializer):
+    related_listing = BookListingResponseSerializer(read_only=True)
+    action_trigger_user = SellerNestedSerializer(read_only=True)
+
+    class Meta:
+        model = PlatformNotification
+        fields = [
+            "id",
+            "notification_type",
+            "title",
+            "body",
+            "related_listing",
+            "action_trigger_user",
+            "is_read",
+            "created_at",
+        ]
+
+
+class BookContactLedgerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BookContactLedger
+        fields = [
+            "id",
+            "contact_person_name",
+            "book_title",
+            "deal_type",
+            "price_recorded",
+            "transaction_date",
+        ]

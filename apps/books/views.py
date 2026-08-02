@@ -1,11 +1,12 @@
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
-from rest_framework import permissions, status, viewsets
+from rest_framework import filters, mixins, permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.books.models import Book, Category
+from apps.books.models import Book, Category, Review, Author
 from apps.books.serializers import (
     BookCreatedResponseSerializer,
     BookImportSerializer,
@@ -13,6 +14,10 @@ from apps.books.serializers import (
     BookSearchSerializer,
     CategoryDetailSerializer,
     CategoryListSerializer,
+    CanonicalBookCategorySerializer,
+    ReviewSerializer,
+    ReviewCreateSerializer,
+    AuthorSerializer,
 )
 from apps.books.services import (
     create_manual_book,
@@ -218,3 +223,151 @@ class BookManualCreateAPIView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List all catalog books",
+        description="Retrieve a paginated list of all canonical catalog books. Supports filtering by category (slug or ID) and searching by title, author, or ISBN.",
+        tags=["Books"],
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve catalog book details",
+        description="Fetch a single catalog book by ID, including its available marketplace listings.",
+        tags=["Books"],
+    ),
+)
+class BookViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    API ViewSet for browsing and retrieving canonical catalog books.
+    """
+
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    serializer_class = CanonicalBookCategorySerializer
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
+    filterset_fields = ["categories", "categories__slug"]
+    search_fields = ["title", "authors__name", "isbn_13", "isbn_10"]
+    ordering_fields = ["created_at", "title"]
+
+    def get_queryset(self):
+        available_listings_qs = (
+            BookListing.objects.filter(status="AVAILABLE")
+            .order_by("price")
+            .select_related("seller", "seller__profile")
+            .prefetch_related("listing_images")
+        )
+        return (
+            Book.objects.prefetch_related(
+                "authors",
+                "categories",
+                Prefetch(
+                    "listings",
+                    queryset=available_listings_qs,
+                    to_attr="ranked_listings",
+                ),
+            )
+            .all()
+            .distinct()
+        )
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List book reviews",
+        description="Retrieve all reviews for a specific canonical book.",
+        parameters=[
+            OpenApiParameter(
+                name="book",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Book ID.",
+            )
+        ],
+        tags=["Reviews"],
+    ),
+    create=extend_schema(
+        summary="Write a review",
+        description="Write a rating/review for a canonical book.",
+        request=ReviewCreateSerializer,
+        responses={201: ReviewSerializer},
+        tags=["Reviews"],
+    ),
+)
+class ReviewViewSet(
+    viewsets.GenericViewSet, mixins.ListModelMixin, mixins.CreateModelMixin
+):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    filterset_fields = ["book"]
+
+    def get_queryset(self):
+        return Review.objects.all().select_related("user")
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return ReviewCreateSerializer
+        return ReviewSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List book recommendations",
+        description="Retrieve recommended books based on available listings.",
+        tags=["Recommendations"],
+    ),
+)
+class RecommendationViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    API ViewSet for displaying book recommendations.
+    """
+
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    serializer_class = CanonicalBookCategorySerializer
+
+    def get_queryset(self):
+        available_listings_qs = (
+            BookListing.objects.filter(status="AVAILABLE")
+            .order_by("price")
+            .select_related("seller", "seller__profile")
+            .prefetch_related("listing_images")
+        )
+        return (
+            Book.objects.filter(listings__status="AVAILABLE")
+            .prefetch_related(
+                "authors",
+                "categories",
+                Prefetch(
+                    "listings",
+                    queryset=available_listings_qs,
+                    to_attr="ranked_listings",
+                ),
+            )
+            .distinct()
+        )
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List authors",
+        description="Retrieve all authors in the master catalog.",
+        tags=["Authors"],
+    ),
+    retrieve=extend_schema(
+        summary="Get author details",
+        description="Retrieve details of a single author by ID.",
+        tags=["Authors"],
+    ),
+)
+class AuthorViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    serializer_class = AuthorSerializer
+    queryset = Author.objects.all().order_by("name")
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["name"]
