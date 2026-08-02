@@ -89,6 +89,7 @@ INSTALLED_APPS = [
     "apps.reports",
     "apps.requirements",
     "apps.favorites",
+    "apps.home_feed",
 ]
 
 MIDDLEWARE = [
