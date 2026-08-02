@@ -16,15 +16,20 @@ from apps.requirements.pagination import RequirementsPagination
 from apps.requirements.serializers import (
     BookRequirementCreateSerializer,
     BookRequirementListSerializer,
+    BookRequirementNearbySerializer,
     BookRequirementUpdateSerializer,
 )
 from apps.requirements.services import (
     create_requirement,
     get_active_requirements,
+    get_nearby_requirements,
     get_requirement_by_id,
     get_requirements_for_user,
     update_requirement,
 )
+
+DEFAULT_RADIUS_KM = 10.0
+MAX_RADIUS_KM = 100.0
 
 
 @extend_schema_view(
@@ -176,14 +181,18 @@ class BookRequirementListCreateView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         serializer = BookRequirementCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
 
         requirement = create_requirement(
             user=request.user,
-            book_title=serializer.validated_data["book_title"],
-            preferred_condition=serializer.validated_data.get("preferred_condition", BookRequirement.Condition.GOOD),
-            min_price=serializer.validated_data.get("min_price"),
-            max_price=serializer.validated_data.get("max_price"),
-            notes=serializer.validated_data.get("notes", ""),
+            book=validated.get("book"),
+            book_title=validated["book_title"],
+            preferred_condition=validated.get("preferred_condition", BookRequirement.Condition.GOOD),
+            min_price=validated.get("min_price"),
+            max_price=validated.get("max_price"),
+            notes=validated.get("notes", ""),
+            latitude=validated.get("latitude"),
+            longitude=validated.get("longitude"),
         )
 
         response_serializer = BookRequirementListSerializer(
@@ -312,12 +321,7 @@ class BookRequirementDetailView(generics.GenericAPIView):
         )
         serializer.is_valid(raise_exception=True)
 
-        # Only pass fields that were actually provided
-        update_data = {}
-        for field in serializer.validated_data:
-            if field in request.data:
-                update_data[field] = serializer.validated_data[field]
-
+        update_data = dict(serializer.validated_data)
         requirement = update_requirement(requirement=instance, data=update_data)
 
         response_serializer = BookRequirementListSerializer(
@@ -372,3 +376,177 @@ class BookRequirementMyListView(generics.ListAPIView):
 
     def get_queryset(self):
         return get_requirements_for_user(user=self.request.user)
+
+
+@extend_schema(
+    summary="Find nearby book requirements",
+    description=(
+        "Returns a paginated list of ACTIVE book requirements within a radius "
+        "of the given coordinates, ordered by distance by default. "
+        "Supports search, condition, and price filters. "
+        "Authenticated users only."
+    ),
+    parameters=[
+        OpenApiParameter(
+            name="lat",
+            type=OpenApiTypes.FLOAT,
+            location=OpenApiParameter.QUERY,
+            required=True,
+            description="Center latitude in degrees.",
+        ),
+        OpenApiParameter(
+            name="lng",
+            type=OpenApiTypes.FLOAT,
+            location=OpenApiParameter.QUERY,
+            required=True,
+            description="Center longitude in degrees.",
+        ),
+        OpenApiParameter(
+            name="radius",
+            type=OpenApiTypes.FLOAT,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description=f"Search radius in kilometers (default {DEFAULT_RADIUS_KM}, max {MAX_RADIUS_KM}).",
+        ),
+        OpenApiParameter(
+            name="search",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description="Search by book title.",
+        ),
+        OpenApiParameter(
+            name="condition",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description=f"Filter by preferred condition: {', '.join(BookRequirement.Condition.values)}.",
+        ),
+        OpenApiParameter(
+            name="min_price",
+            type=OpenApiTypes.FLOAT,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description="Filter by minimum price (inclusive).",
+        ),
+        OpenApiParameter(
+            name="max_price",
+            type=OpenApiTypes.FLOAT,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description="Filter by maximum price (inclusive).",
+        ),
+        OpenApiParameter(
+            name="ordering",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description=(
+                "Order results. Options:\n"
+                "  - `distance` (nearest first, default)\n"
+                "  - `-distance` (farthest first)\n"
+                "  - `created_at` (oldest first)\n"
+                "  - `-created_at` (newest first)"
+            ),
+        ),
+        OpenApiParameter(
+            name="page",
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description="Page number for paginated results.",
+        ),
+        OpenApiParameter(
+            name="page_size",
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description="Number of results per page (max 100).",
+        ),
+    ],
+    responses={
+        200: BookRequirementNearbySerializer(many=True),
+        400: OpenApiTypes.OBJECT,
+        401: OpenApiTypes.OBJECT,
+    },
+    tags=["Book Requirements"],
+)
+class BookRequirementNearbyView(generics.GenericAPIView):
+    """
+    GET /api/v1/requirements/nearby/ — Auth: nearby requirements with distance
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = BookRequirementNearbySerializer
+    pagination_class = RequirementsPagination
+    filter_backends = []
+
+    def get(self, request, *args, **kwargs):
+        lat = request.query_params.get("lat")
+        lng = request.query_params.get("lng")
+        radius = request.query_params.get("radius", DEFAULT_RADIUS_KM)
+        search = request.query_params.get("search")
+        condition = request.query_params.get("condition")
+        min_price = request.query_params.get("min_price")
+        max_price = request.query_params.get("max_price")
+        ordering = request.query_params.get("ordering", "distance")
+
+        if lat is None or lng is None:
+            return Response(
+                {"detail": "lat and lng are required query parameters."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            lat = float(lat)
+            lng = float(lng)
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "lat and lng must be valid numbers."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not -90 <= lat <= 90:
+            return Response(
+                {"detail": "lat must be between -90 and 90."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not -180 <= lng <= 180:
+            return Response(
+                {"detail": "lng must be between -180 and 180."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            radius = float(radius)
+            if radius <= 0 or radius > MAX_RADIUS_KM:
+                raise ValueError
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": f"radius must be a positive number up to {MAX_RADIUS_KM} km."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        qs = get_nearby_requirements(
+            center_lat=lat,
+            center_lng=lng,
+            radius_km=radius,
+            search=search,
+            condition=condition,
+            min_price=min_price,
+            max_price=max_price,
+            ordering=ordering,
+        )
+
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = BookRequirementNearbySerializer(
+                page, many=True, context={"request": request}
+            )
+            return self.get_paginated_response(serializer.data)
+
+        serializer = BookRequirementNearbySerializer(
+            qs, many=True, context={"request": request}
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
