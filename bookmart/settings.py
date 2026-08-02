@@ -88,6 +88,7 @@ INSTALLED_APPS = [
     "apps.marketplace",
     "apps.reports",
     "apps.requirements",
+    "apps.favorites",
 ]
 
 MIDDLEWARE = [
