@@ -87,6 +87,7 @@ INSTALLED_APPS = [
     "apps.books",
     "apps.marketplace",
     "apps.reports",
+    "apps.requirements",
 ]
 
 MIDDLEWARE = [
@@ -320,7 +321,3 @@ STORAGES = {
 
 # Compatibility settings for legacy third-party libraries (like django-cloudinary-storage) under Django 6.0
 DEFAULT_FILE_STORAGE = DEFAULT_STORAGE_BACKEND
-STATICFILES_STORAGE = "bookmart.settings.NonStrictCompressedManifestStaticFilesStorage"
-
-MEDIA_URL = "media/"
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")
