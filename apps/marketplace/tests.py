@@ -156,14 +156,14 @@ class BookListingTests(APITestCase):
         self.assertEqual(data["listing_images"][0]["label"], "FRONT_COVER")
         self.assertIsNotNone(data["listing_images"][0]["image_url"])
 
-    def test_create_listing_with_custom_category(self):
-        """Ensure listing created with title, author, and category assigns category to newly created book."""
+    def test_create_listing_with_custom_genre(self):
+        """Ensure listing created with title, author, and genre assigns genre to newly created book."""
         self.client.force_authenticate(user=self.seller)
         url = "/api/v1/marketplace/listings/"
         data = {
             "title": "Designing Data-Intensive Applications",
             "author": "Martin Kleppmann",
-            "category": "Distributed Systems",
+            "genre": "Distributed Systems",
             "price": "750.00",
             "condition": "LIKE_NEW",
             "front_cover": self.get_dummy_file("front.gif"),
@@ -175,7 +175,7 @@ class BookListingTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         book = Book.objects.get(title="Designing Data-Intensive Applications")
-        self.assertTrue(book.categories.filter(name="Distributed Systems").exists())
+        self.assertTrue(book.genres.filter(name="Distributed Systems").exists())
 
 
 class BookListingUpdateTests(APITestCase):
@@ -427,7 +427,7 @@ class BookListingUpdateTests(APITestCase):
             "latitude": "",
             "longitude": "",
             "condition_notes": "",
-            "categories": "",
+            "genres": "",
             "removed_image_ids": "0",
             "book_id": "",
             "title": "",
@@ -542,6 +542,8 @@ class WishlistAndNotificationTests(APITestCase):
         response = self.client.post(url, {"listing": self.listing.id})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Wishlist.objects.count(), 1)
+        # Assert signal created PlatformNotification for the seller
+        self.assertEqual(PlatformNotification.objects.filter(user=self.seller, notification_type="BUYER_INTEREST").count(), 1)
 
         # List wishlist items
         response = self.client.get(url)
@@ -585,5 +587,7 @@ class WishlistAndNotificationTests(APITestCase):
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(BookContactLedger.objects.count(), 1)
+        # Assert signal resolved the seller listing and created a PlatformNotification for them
+        self.assertEqual(PlatformNotification.objects.filter(user=self.seller, notification_type="BUYER_INTEREST").count(), 1)
 
 

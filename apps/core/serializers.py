@@ -12,18 +12,50 @@ class CollegeSerializer(serializers.ModelSerializer):
 class ProfileResponseSerializer(serializers.ModelSerializer):
     college = CollegeSerializer(read_only=True)
     full_name = serializers.CharField(source="user.full_name", read_only=True)
+    email = serializers.EmailField(source="user.email", read_only=True)
+    user_id = serializers.IntegerField(source="user.id", read_only=True)
+    profile_views = serializers.SerializerMethodField()
+    whatsapp_contacts = serializers.SerializerMethodField()
+    active_listings_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
         fields = [
             "id",
+            "user_id",
             "full_name",
+            "email",
             "image",
             "phone_number",
             "date_of_birth",
             "college",
             "city_location",
+            "profile_views",
+            "whatsapp_contacts",
+            "active_listings_count",
         ]
+
+    def get_profile_views(self, obj):
+        from django.db.models import Sum
+        from apps.marketplace.models import ListingAnalyticsDaily
+        views = ListingAnalyticsDaily.objects.filter(
+            listing__seller=obj.user
+        ).aggregate(total=Sum("views_count"))["total"]
+        return views or 0
+
+    def get_whatsapp_contacts(self, obj):
+        from django.db.models import Sum
+        from apps.marketplace.models import ListingAnalyticsDaily
+        contacts = ListingAnalyticsDaily.objects.filter(
+            listing__seller=obj.user
+        ).aggregate(total=Sum("wa_contacts_count"))["total"]
+        return contacts or 0
+
+    def get_active_listings_count(self, obj):
+        from apps.marketplace.models import BookListing
+        return BookListing.objects.filter(
+            seller=obj.user, status=BookListing.Status.AVAILABLE
+        ).count()
 
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):

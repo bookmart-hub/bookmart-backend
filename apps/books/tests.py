@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.books.models import Category, Book, Author
+from apps.books.models import Genre, Book, Author
 from apps.books.services import import_book_from_openlibrary
 
 User = get_user_model()
@@ -42,18 +42,18 @@ class BookImportCategorizationTests(APITestCase):
         self.assertEqual(book.authors.first().name, "Thomas H. Cormen")
         self.assertEqual(book.published_date, date(1990, 1, 1))
 
-        self.assertEqual(book.categories.count(), 3)
-        categories = list(book.categories.values_list("name", flat=True))
-        self.assertIn("Algorithms", categories)
-        self.assertIn("Computer programming", categories)
-        self.assertIn("Mathematics", categories)
+        self.assertEqual(book.genres.count(), 3)
+        genres = list(book.genres.values_list("name", flat=True))
+        self.assertIn("Algorithms", genres)
+        self.assertIn("Computer programming", genres)
+        self.assertIn("Mathematics", genres)
 
-        algorithms_cat = Category.objects.get(name="Algorithms")
-        self.assertEqual(algorithms_cat.slug, "algorithms")
+        algorithms_genre = Genre.objects.get(name="Algorithms")
+        self.assertEqual(algorithms_genre.slug, "algorithms")
 
-        dup_cat = Category(name="Algorithms.")
-        dup_cat.save()
-        self.assertEqual(dup_cat.slug, "algorithms-1")
+        dup_genre = Genre(name="Algorithms.")
+        dup_genre.save()
+        self.assertEqual(dup_genre.slug, "algorithms-1")
 
     @patch("apps.books.services.get_book_document")
     @patch("apps.books.services.get_author_document")
@@ -62,9 +62,7 @@ class BookImportCategorizationTests(APITestCase):
     ):
         mock_get_book_document.return_value = {
             "title": "Batman the Killing Joke",
-            "authors": [{"author": {"key": "/authors/OL26346A"}}],
-            "subjects": ["Comics"],
-            "first_publish_date": "1988 July",
+            "first_publish_date": "1988",
         }
         mock_get_author_document.return_value = {"name": "Alan Moore"}
 
@@ -80,7 +78,7 @@ class BookImportCategorizationTests(APITestCase):
     def test_import_book_endpoint_payload(
         self, mock_get_author_document, mock_get_book_document
     ):
-        """Verify POST endpoint response payload is extended with published_year, authors, and categories."""
+        """Verify POST endpoint response payload is extended with published_year, authors, and genres."""
         self.client.force_authenticate(user=self.user)
         mock_get_book_document.return_value = {
             "title": "Introduction to Algorithms",
@@ -99,14 +97,14 @@ class BookImportCategorizationTests(APITestCase):
         self.assertEqual(response.data["title"], "Introduction to Algorithms")
         self.assertEqual(response.data["published_year"], 1990)
         self.assertEqual(response.data["authors"], ["Thomas H. Cormen"])
-        self.assertEqual(response.data["categories"], ["Algorithms", "Mathematics"])
+        self.assertEqual(response.data["genres"], ["Algorithms", "Mathematics"])
 
     @patch("apps.books.services.get_book_document")
     @patch("apps.books.services.get_author_document")
-    def test_import_book_with_custom_category(
+    def test_import_book_with_custom_genre(
         self, mock_get_author_document, mock_get_book_document
     ):
-        """Verify importing a book with a custom manual category attaches the custom category."""
+        """Verify importing a book with a custom manual genre attaches the custom genre."""
         self.client.force_authenticate(user=self.user)
         mock_get_book_document.return_value = {
             "title": "Clean Code",
@@ -119,13 +117,13 @@ class BookImportCategorizationTests(APITestCase):
         url = "/api/v1/book/import-openlibrary/"
         data = {
             "openlibrary_key": "/works/OL12345W",
-            "category": "Software Engineering Custom",
+            "genre": "Software Engineering Custom",
         }
         response = self.client.post(url, data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn("Software Engineering Custom", response.data["categories"])
-        self.assertIn("Software", response.data["categories"])
+        self.assertIn("Software Engineering Custom", response.data["genres"])
+        self.assertIn("Software", response.data["genres"])
 
     def test_manual_book_create_endpoint(self):
         """Verify manually inserting a book record when search does not find the book."""
@@ -134,7 +132,7 @@ class BookImportCategorizationTests(APITestCase):
         data = {
             "title": "My Custom Unique Book",
             "author": "John Doe",
-            "category": "Self Help Custom",
+            "genre": "Self Help Custom",
             "published_year": 2024,
             "description": "A great unique book.",
         }
@@ -143,7 +141,7 @@ class BookImportCategorizationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["title"], "My Custom Unique Book")
         self.assertEqual(response.data["authors"], ["John Doe"])
-        self.assertIn("Self Help Custom", response.data["categories"])
+        self.assertIn("Self Help Custom", response.data["genres"])
         self.assertTrue(response.data["is_local"])
 
     @patch("apps.books.services.requests.get")
@@ -158,7 +156,7 @@ class BookImportCategorizationTests(APITestCase):
             {
                 "title": "Python Deep Learning",
                 "author": "Jane Smith",
-                "category": "Artificial Intelligence",
+                "genre": "Artificial Intelligence",
             },
             format="json",
         )
@@ -174,7 +172,7 @@ class BookImportCategorizationTests(APITestCase):
         local_book = next(b for b in response.data if b["title"] == "Python Deep Learning")
         self.assertTrue(local_book["is_local"])
         self.assertEqual(local_book["authors"], ["Jane Smith"])
-        self.assertIn("Artificial Intelligence", local_book["categories"])
+        self.assertIn("Artificial Intelligence", local_book["genres"])
 
     @patch("apps.books.services.requests.get")
     def test_search_books_local_first_does_not_call_openlibrary(self, mock_requests_get):
@@ -202,7 +200,7 @@ class BookImportCategorizationTests(APITestCase):
         mock_requests_get.assert_not_called()
 
 
-class CategoryViewSetTests(APITestCase):
+class GenreViewSetTests(APITestCase):
 
     def setUp(self):
         self.user1 = User.objects.create_user(
@@ -215,7 +213,7 @@ class CategoryViewSetTests(APITestCase):
             full_name="Seller Two",
             password="testpassword123",
         )
-        self.category = Category.objects.create(
+        self.genre = Genre.objects.create(
             name="Competitive Exams",
             subtitle="Prepare to Succeed",
             icon="🚀",
@@ -228,7 +226,7 @@ class CategoryViewSetTests(APITestCase):
             {
                 "title": "Quantitative Aptitude",
                 "author": "R.S. Aggarwal",
-                "category": "Competitive Exams",
+                "genre": "Competitive Exams",
             },
             format="json",
         )
@@ -256,9 +254,9 @@ class CategoryViewSetTests(APITestCase):
             status="AVAILABLE",
         )
 
-    def test_list_categories(self):
-        """Ensure GET /api/v1/book/categories/ returns list of categories with total_books_count and subtitle."""
-        url = "/api/v1/book/categories/"
+    def test_list_genres(self):
+        """Ensure GET /api/v1/book/genres/ returns list of genres with total_books_count and subtitle."""
+        url = "/api/v1/book/genres/"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
@@ -266,9 +264,9 @@ class CategoryViewSetTests(APITestCase):
         self.assertEqual(response.data["results"][0]["name"], "Competitive Exams")
         self.assertEqual(response.data["results"][0]["subtitle"], "Prepare to Succeed")
 
-    def test_retrieve_category_detail_ranked_by_price(self):
-        """Ensure retrieving category returns canonical books with listings ranked by price ascending (cheapest first)."""
-        url = f"/api/v1/book/categories/{self.category.slug}/"
+    def test_retrieve_genre_detail_ranked_by_price(self):
+        """Ensure retrieving genre returns canonical books with listings ranked by price ascending (cheapest first)."""
+        url = f"/api/v1/book/genres/{self.genre.slug}/"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["name"], "Competitive Exams")
@@ -299,12 +297,12 @@ class BookViewSetTests(APITestCase):
             full_name="Buyer User",
             password="testpassword123",
         )
-        self.category = Category.objects.create(
+        self.genre = Genre.objects.create(
             name="Competitive Exams",
             subtitle="Prepare to Succeed",
             icon="🚀",
         )
-        self.other_category = Category.objects.create(
+        self.other_genre = Genre.objects.create(
             name="Fiction",
             subtitle="Explore Worlds",
             icon="📚",
@@ -315,13 +313,13 @@ class BookViewSetTests(APITestCase):
             title="Quantitative Aptitude",
             published_date=date(2020, 1, 1),
         )
-        self.book1.categories.add(self.category)
+        self.book1.genres.add(self.genre)
 
         self.book2 = Book.objects.create(
             title="A Song of Ice and Fire",
             published_date=date(1996, 8, 1),
         )
-        self.book2.categories.add(self.other_category)
+        self.book2.genres.add(self.other_genre)
 
     def test_list_books_paginated(self):
         """Ensure GET /api/v1/book/books/ returns paginated books."""
@@ -331,9 +329,9 @@ class BookViewSetTests(APITestCase):
         self.assertEqual(response.data["count"], 2)
         self.assertEqual(len(response.data["results"]), 2)
 
-    def test_filter_books_by_category_slug(self):
-        """Ensure GET /api/v1/book/books/?categories__slug=... filters books."""
-        url = "/api/v1/book/books/?categories__slug=competitive-exams"
+    def test_filter_books_by_genre_slug(self):
+        """Ensure GET /api/v1/book/books/?genres__slug=... filters books."""
+        url = "/api/v1/book/books/?genres__slug=competitive-exams"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
@@ -373,6 +371,3 @@ class AuthorViewSetTests(APITestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["name"], "Author One")
-
-
-

@@ -3,8 +3,8 @@ from django.contrib.auth import get_user_model
 from django.db.models import Count, Exists, OuterRef, Q, Subquery, Value, BooleanField, IntegerField
 from django.db.models.functions import Coalesce
 
-from apps.books.models import Book, Category
-from apps.books.serializers import CategoryListSerializer
+from apps.books.models import Book, Genre
+from apps.books.serializers import GenreListSerializer
 from apps.marketplace.models import BookListing, BookListingImage, Wishlist
 from apps.marketplace.services import get_bounding_box, haversine_distance_sql
 from apps.requirements.models import BookRequirement
@@ -187,8 +187,8 @@ class HomeFeedService:
             return self.get_latest_books()
 
         interacted_books = Book.objects.filter(id__in=interacted_book_ids)
-        interacted_category_ids = list(
-            interacted_books.values_list("categories", flat=True)
+        interacted_genre_ids = list(
+            interacted_books.values_list("genres", flat=True)
         )
 
         interacted_author_ids = list(
@@ -199,8 +199,8 @@ class HomeFeedService:
             interacted_books.values_list("title", flat=True)
         )
 
-        category_books = Book.objects.filter(
-            categories__id__in=interacted_category_ids
+        genre_books = Book.objects.filter(
+            genres__id__in=interacted_genre_ids
         ).distinct()
 
         author_books = Book.objects.filter(
@@ -212,7 +212,7 @@ class HomeFeedService:
         ).distinct() if similar_titles else Book.objects.none()
 
         recommended_book_ids = (
-            set(category_books.values_list("id", flat=True))
+            set(genre_books.values_list("id", flat=True))
             | set(author_books.values_list("id", flat=True))
             | set(title_books.values_list("id", flat=True))
         ) - interacted_book_ids
@@ -246,8 +246,8 @@ class HomeFeedService:
 
         return qs.order_by("-created_at")[:self.page_size]
 
-    def get_categories(self):
-        qs = Category.objects.annotate(
+    def get_genres(self):
+        qs = Genre.objects.annotate(
             total_books_count=Count("books"),
         ).order_by("-total_books_count")
 
@@ -307,6 +307,6 @@ class HomeFeedService:
             "popular_books": self.get_popular_books(),
             "recommended_books": self.get_recommended_books(),
             "featured_books": self.get_featured_books(),
-            "categories": self.get_categories(),
+            "genres": self.get_genres(),
             "stats": self.get_statistics(),
         }

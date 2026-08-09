@@ -75,3 +75,61 @@ class UserResponseSerializer(serializers.ModelSerializer):
             "provider",
             "created_at",
         ]
+
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        User = get_user_model()
+        normalized_email = User.objects.normalize_email(value)
+        if not User.objects.filter(email__iexact=normalized_email).exists():
+            raise serializers.ValidationError("No account found with this email address.")
+        return normalized_email
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True, validators=[validate_password])
+
+
+class SocialLoginSerializer(serializers.Serializer):
+    provider = serializers.ChoiceField(choices=User.AuthProvider.choices)
+    provider_id = serializers.CharField()
+    email = serializers.EmailField()
+    full_name = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        provider = attrs["provider"]
+        provider_id = attrs["provider_id"]
+        email = attrs["email"].lower()
+        full_name = attrs.get("full_name") or email.split("@")[0]
+
+        # Get or create user
+        try:
+            user = User.objects.get(email__iexact=email)
+            if user.provider == User.AuthProvider.EMAIL:
+                # Link native account with social account
+                user.provider = provider
+                user.provider_id = provider_id
+                user.email_verified = True
+                user.save()
+            elif user.provider != provider:
+                raise serializers.ValidationError(
+                    f"This email is registered with {user.provider} sign-in."
+                )
+        except User.DoesNotExist:
+            user = User.objects.create(
+                email=email,
+                full_name=full_name,
+                provider=provider,
+                provider_id=provider_id,
+                email_verified=True,
+            )
+            user.set_unusable_password()
+            user.save()
+
+        attrs["user"] = user
+        return attrs
+

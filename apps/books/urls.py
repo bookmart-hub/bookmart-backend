@@ -5,7 +5,7 @@ from apps.books.views import (
     BookImportAPIView,
     BookManualCreateAPIView,
     BookSearchAPIView,
-    CategoryViewSet,
+    GenreViewSet,
     BookViewSet,
     ReviewViewSet,
     RecommendationViewSet,
@@ -13,7 +13,7 @@ from apps.books.views import (
 )
 
 router = DefaultRouter()
-router.register("categories", CategoryViewSet, basename="category")
+router.register("genres", GenreViewSet, basename="genre")
 router.register("books", BookViewSet, basename="book")
 router.register("reviews", ReviewViewSet, basename="review")
 router.register("recommendations", RecommendationViewSet, basename="recommendation")

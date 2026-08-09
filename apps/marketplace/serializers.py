@@ -17,6 +17,7 @@ class AuthorNestedSerializer(serializers.ModelSerializer):
 
 class BookNestedSerializer(serializers.ModelSerializer):
     authors = AuthorNestedSerializer(many=True, read_only=True)
+    genres = serializers.SerializerMethodField()
 
     class Meta:
         model = Book
@@ -28,7 +29,16 @@ class BookNestedSerializer(serializers.ModelSerializer):
             "isbn_13",
             "isbn_10",
             "openlibrary_key",
+            "genres",
+            "description",
+            "publisher",
+            "published_date",
+            "language",
         ]
+
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_genres(self, obj):
+        return [g.name for g in obj.genres.all()]
 
 
 class SellerNestedSerializer(serializers.ModelSerializer):
@@ -79,6 +89,7 @@ class BookListingResponseSerializer(serializers.ModelSerializer):
     listing_images = BookListingImageSerializer(many=True, read_only=True)
     favorite_count = serializers.SerializerMethodField()
     is_favorited = serializers.SerializerMethodField()
+    tags = serializers.SerializerMethodField()
 
     class Meta:
         model = BookListing
@@ -95,6 +106,7 @@ class BookListingResponseSerializer(serializers.ModelSerializer):
             "longitude",
             "favorite_count",
             "is_favorited",
+            "tags",
             "created_at",
             "updated_at",
         ]
@@ -114,14 +126,12 @@ class BookListingResponseSerializer(serializers.ModelSerializer):
             return Wishlist.objects.filter(user=request.user, listing=obj).exists()
         return False
 
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_tags(self, obj):
+        return [t.tag.name for t in obj.tags.all()]
+
 
 class NearbyBookListingSerializer(BookListingResponseSerializer):
-    """Extends the standard response with a computed distance_km field.
-
-    Used by the /nearby/ endpoint. The distance_km field is annotated
-    on the queryset by the get_nearby_listings service function.
-    """
-
     distance_km = serializers.FloatField(read_only=True)
 
     class Meta(BookListingResponseSerializer.Meta):
@@ -133,6 +143,8 @@ class BookListingCreateSerializer(serializers.ModelSerializer):
     openlibrary_key = serializers.CharField(required=False, write_only=True)
     title = serializers.CharField(required=False, write_only=True)
     author = serializers.CharField(required=False, write_only=True)
+    genre = serializers.CharField(required=False, write_only=True, allow_blank=True)
+    genres = serializers.ListField(child=serializers.CharField(), required=False, write_only=True)
     category = serializers.CharField(required=False, write_only=True, allow_blank=True)
     categories = serializers.ListField(child=serializers.CharField(), required=False, write_only=True)
 
@@ -155,6 +167,8 @@ class BookListingCreateSerializer(serializers.ModelSerializer):
             "openlibrary_key",
             "title",
             "author",
+            "genre",
+            "genres",
             "category",
             "categories",
             "front_cover",
@@ -171,12 +185,7 @@ class BookListingCreateSerializer(serializers.ModelSerializer):
         title = attrs.get("title")
         author = attrs.get("author")
 
-        if not any([book_id, openlibrary_key, (title and author)]):
-            raise serializers.ValidationError(
-                "You must provide either a 'book_id', an 'openlibrary_key', or both 'title' and 'author' for manual entry."
-            )
-
-        if (title and not author) or (author and not title):
+        if not book_id and not openlibrary_key and (not title or not author):
             raise serializers.ValidationError(
                 "To manually create/associate a book listing, you must provide both 'title' and 'author'."
             )
@@ -189,6 +198,8 @@ class BookListingUpdateSerializer(serializers.ModelSerializer):
     openlibrary_key = serializers.CharField(required=False, write_only=True)
     title = serializers.CharField(required=False, write_only=True)
     author = serializers.CharField(required=False, write_only=True)
+    genre = serializers.CharField(required=False, write_only=True, allow_blank=True)
+    genres = serializers.ListField(child=serializers.CharField(), required=False, write_only=True)
     category = serializers.CharField(required=False, write_only=True, allow_blank=True)
     categories = serializers.ListField(child=serializers.CharField(), required=False, write_only=True)
 
@@ -219,6 +230,8 @@ class BookListingUpdateSerializer(serializers.ModelSerializer):
             "openlibrary_key",
             "title",
             "author",
+            "genre",
+            "genres",
             "category",
             "categories",
             "front_cover",
@@ -296,7 +309,7 @@ class BookListingUpdateSerializer(serializers.ModelSerializer):
         return self._validate_image_file(value)
 
 
-class WishlistSerializer(serializers.ModelSerializer):
+class WishlistResponseSerializer(serializers.ModelSerializer):
     listing = BookListingResponseSerializer(read_only=True)
 
     class Meta:
@@ -313,7 +326,7 @@ class WishlistCreateSerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         listing = attrs.get("listing")
         if Wishlist.objects.filter(user=user, listing=listing).exists():
-            raise serializers.ValidationError("This listing is already in your wishlist.")
+            raise serializers.ValidationError("This book listing is already in your wishlist.")
         return attrs
 
 

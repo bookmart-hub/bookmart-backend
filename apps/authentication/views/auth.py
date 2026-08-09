@@ -127,11 +127,55 @@ class RefreshTokenView(views.APIView):
         )
 
 
+from apps.authentication.models import User
+
 class ForgotPasswordView(views.APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
+    serializer_class = serializers.ForgotPasswordSerializer
 
+    @extend_schema(
+        summary="Request Password Reset OTP",
+        description="Verify email existence and send a 4-digit OTP code to the user's email.",
+        tags=["Authentication"],
+    )
     def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
 
-        # send otp
+        user = User.objects.get(email__iexact=email)
+        otp_code = services.OTPService.generate_otp(user, purpose="PASSWORD_RESET")
+        services.EmailNotificationService.send_otp_email(
+            user, otp_code, purpose="PASSWORD_RESET"
+        )
 
-        return response.Response(...)
+        return response.Response(
+            {"detail": "A password reset 4-digit OTP has been sent to your email."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class SocialLoginView(views.APIView):
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+    serializer_class = serializers.SocialLoginSerializer
+
+    @extend_schema(
+        summary="Social Sign-In",
+        description="Authenticate a user using Google or Facebook credentials.",
+        tags=["Authentication"],
+    )
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data["user"]
+
+        return response.Response(
+            {
+                "user": serializers.UserResponseSerializer(user).data,
+                "tokens": get_tokens_for_user(user),
+            },
+            status=status.HTTP_200_OK,
+        )
+

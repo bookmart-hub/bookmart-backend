@@ -5,7 +5,8 @@ import requests
 from django.db import transaction
 from django.db.models import Q
 
-from apps.books.models import Author, Book, Category
+from apps.books.models import Author, Book, Genre
+from apps.tags.services import tag_item
 
 OPENLIBRARY_WORK_URL = "https://openlibrary.org"
 OPENLIBRARY_SEARCH_URL = "https://openlibrary.org/search.json"
@@ -28,39 +29,39 @@ def parse_first_publish_date(date_str):
     return None
 
 
-def process_category_input(category_input):
+def process_genre_input(genre_input):
     """
-    Parses string or list input into Category model instances.
+    Parses string or list input into Genre model instances.
     Accepts single string (e.g. 'Fiction' or 'Fiction, Exam Prep') or list of strings/IDs.
     """
-    if not category_input:
+    if not genre_input:
         return []
 
-    categories = []
+    genres = []
     items = []
 
-    if isinstance(category_input, str):
-        items = [c.strip() for c in category_input.split(",") if c.strip()]
-    elif isinstance(category_input, (list, tuple, set)):
-        items = list(category_input)
+    if isinstance(genre_input, str):
+        items = [c.strip() for c in genre_input.split(",") if c.strip()]
+    elif isinstance(genre_input, (list, tuple, set)):
+        items = list(genre_input)
 
     for item in items:
-        if isinstance(item, Category):
-            categories.append(item)
+        if isinstance(item, Genre):
+            genres.append(item)
         elif isinstance(item, int):
             try:
-                cat = Category.objects.get(pk=item)
-                categories.append(cat)
-            except Category.DoesNotExist:
+                gen = Genre.objects.get(pk=item)
+                genres.append(gen)
+            except Genre.DoesNotExist:
                 pass
         elif isinstance(item, str) and item.strip():
             name = item.strip()
             if len(name) > 100:
                 name = name[:100]
-            cat, _ = Category.objects.get_or_create(name=name)
-            categories.append(cat)
+            gen, _ = Genre.objects.get_or_create(name=name)
+            genres.append(gen)
 
-    return categories
+    return genres
 
 
 @transaction.atomic
@@ -69,9 +70,9 @@ def import_book_from_openlibrary(work_key, custom_category=None):
     existing_book = Book.objects.filter(openlibrary_key=work_key).first()
     if existing_book:
         if custom_category:
-            manual_cats = process_category_input(custom_category)
-            for cat in manual_cats:
-                existing_book.categories.add(cat)
+            manual_genres = process_genre_input(custom_category)
+            for gen in manual_genres:
+                existing_book.genres.add(gen)
         return existing_book, False
 
     document = get_book_document(work_key)
@@ -111,25 +112,30 @@ def import_book_from_openlibrary(work_key, custom_category=None):
     # ManyToMany assignment
     book.authors.set(author_objects)
 
-    # Parse and assign categories from subjects (limit to top 10)
-    category_objects = []
-    for subject in document.get("subjects", [])[:10]:
+    # Parse and assign genres from subjects (limit to top 10)
+    genre_objects = []
+    subjects = document.get("subjects", [])
+    for subject in subjects[:10]:
         subject_name = subject.strip()
         if len(subject_name) > 100:
             subject_name = subject_name[:100]
         if not subject_name:
             continue
-        category, _ = Category.objects.get_or_create(name=subject_name)
-        category_objects.append(category)
+        genre, _ = Genre.objects.get_or_create(name=subject_name)
+        genre_objects.append(genre)
 
-    # Handle manual custom category input
+    # Handle manual custom genre input
     if custom_category:
-        manual_cats = process_category_input(custom_category)
-        for cat in manual_cats:
-            if cat not in category_objects:
-                category_objects.append(cat)
+        manual_genres = process_genre_input(custom_category)
+        for gen in manual_genres:
+            if gen not in genre_objects:
+                genre_objects.append(gen)
 
-    book.categories.set(category_objects)
+    book.genres.set(genre_objects)
+
+    # Tag the book with OpenLibrary subjects as tags
+    if subjects:
+        tag_item(book, subjects)
 
     return book, created
 
@@ -174,11 +180,11 @@ def create_manual_book(data):
     if author_objects:
         book.authors.set(author_objects)
 
-    cat_input = data.get("category") or data.get("categories")
-    if cat_input:
-        cats = process_category_input(cat_input)
-        if cats:
-            book.categories.set(cats)
+    genre_input = data.get("genre") or data.get("genres")
+    if genre_input:
+        genres = process_genre_input(genre_input)
+        if genres:
+            book.genres.set(genres)
 
     return book
 
@@ -215,7 +221,7 @@ def search_books(query: str, limit: int = 10):
             | Q(isbn_10__icontains=query_str)
             | Q(openlibrary_key=query_str)
         )
-        .prefetch_related("authors", "categories")
+        .prefetch_related("authors", "genres")
         .distinct()[:limit]
     )
 
@@ -229,7 +235,7 @@ def search_books(query: str, limit: int = 10):
                 "isbn13": b.isbn_13,
                 "published_year": b.published_date.year if b.published_date else None,
                 "cover_url": b.cover_url or None,
-                "categories": [category.name for category in b.categories.all()],
+                "categories": [genre.name for genre in b.genres.all()],
                 "is_local": True,
             }
         )
@@ -280,56 +286,7 @@ def search_books(query: str, limit: int = 10):
                     "is_local": False,
                 }
             )
-    except Exception:
+    except requests.RequestException:
         pass
 
     return results[:limit]
-
-
-def import_openlibrary_book(data):
-
-    authors = []
-
-    for author_name in data.get("author_name", []):
-        author, _ = Author.objects.get_or_create(name=author_name.strip())
-        authors.append(author)
-
-    isbn13 = None
-    isbn10 = None
-
-    for isbn in data.get("isbn", []):
-        if len(isbn) == 13:
-            isbn13 = isbn
-            break
-
-    for isbn in data.get("isbn", []):
-        if len(isbn) == 10:
-            isbn10 = isbn
-            break
-
-    # Try finding existing book
-    book = None
-
-    if isbn13:
-        book = Book.objects.filter(isbn_13=isbn13).first()
-
-    if not book:
-        book = Book.objects.create(
-            isbn_13=isbn13,
-            isbn_10=isbn10,
-            title=data["title"],
-            published_date=(
-                date(data["publish_year"], 1, 1) if data.get("publish_year") else None
-            ),
-            cover_url=(
-                f"https://covers.openlibrary.org/b/id/{data['cover_id']}-L.jpg"
-                if data.get("cover_id")
-                else ""
-            ),
-            openlibrary_id=data.get("key"),
-        )
-
-    if authors:
-        book.authors.set(authors)
-
-    return book

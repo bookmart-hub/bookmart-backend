@@ -17,7 +17,7 @@ from apps.home_feed.serializers import HomeFeedSerializer
         description=(
             "Returns the complete home feed data for the authenticated user, "
             "including nearby books, latest listings, popular listings, recommended "
-            "listings, featured books, categories, platform statistics, and profile "
+            "listings, featured books, genres, platform statistics, and profile "
             "completion score. All sections are returned in a single response to "
             "minimize the number of API calls the mobile client needs to make."
         ),

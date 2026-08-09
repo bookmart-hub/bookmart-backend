@@ -150,3 +150,36 @@ class NotificationDeleteView(views.APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+from apps.notifications.serializers import DeviceSerializer
+from apps.notifications.models import Device
+
+class DeviceRegisterView(views.APIView):
+    """POST /api/v1/notifications/devices/ - Register or update a user device for push notifications"""
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = DeviceSerializer
+
+    @extend_schema(
+        summary="Register user device push token",
+        description="Associates the authenticated user with an Expo push notification token.",
+        request=DeviceSerializer,
+        responses={201: OpenApiTypes.OBJECT, 200: OpenApiTypes.OBJECT},
+        tags=["Notifications"],
+    )
+    def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        token = serializer.validated_data["expo_push_token"]
+
+        # Ensure the token belongs uniquely to this user (delete it if linked to another user previously)
+        Device.objects.filter(expo_push_token=token).exclude(user=request.user).delete()
+        device, created = Device.objects.get_or_create(
+            user=request.user,
+            expo_push_token=token,
+        )
+
+        status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        detail_msg = "Device push token registered." if created else "Device push token already registered."
+        return Response({"detail": detail_msg}, status=status_code)
+

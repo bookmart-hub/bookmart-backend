@@ -16,10 +16,12 @@ urlpatterns = [
         otp.VerifyOTPView.as_view(),
         name="verify-register-otp",
     ),
-    # path(
-    #     "otp/verify-reset-otp/",
-    #     otp.VerifyResetOTPView.as_view(),
-    #     name="verify-reset-otp",
-    # ),
+    path("auth/forgot-password/", auth.ForgotPasswordView.as_view(), name="forgot-password"),
+    path(
+        "otp/verify-reset-otp/",
+        otp.VerifyResetOTPView.as_view(),
+        name="verify-reset-otp",
+    ),
+    path("auth/social-login/", auth.SocialLoginView.as_view(), name="social-login"),
     path("user/me/", user.UserViewSet.as_view(), name="current-user"),
 ]  # + router.urls

@@ -6,6 +6,7 @@ from apps.notifications.views import (
     NotificationMarkAllReadView,
     NotificationMarkReadView,
     NotificationUnreadCountView,
+    DeviceRegisterView,
 )
 
 urlpatterns = [
@@ -29,5 +30,10 @@ urlpatterns = [
         "notifications/<int:pk>/",
         NotificationDeleteView.as_view(),
         name="notification-delete",
+    ),
+    path(
+        "notifications/devices/",
+        DeviceRegisterView.as_view(),
+        name="device-register",
     ),
 ]

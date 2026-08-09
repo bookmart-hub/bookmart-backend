@@ -6,7 +6,7 @@ from django.db.models import FloatField, Q
 from django.db.models.expressions import RawSQL
 
 from apps.books.models import Author, Book
-from apps.books.services import import_book_from_openlibrary, process_category_input
+from apps.books.services import import_book_from_openlibrary, process_genre_input
 from apps.marketplace.models import BookListing, BookListingImage
 
 
@@ -76,7 +76,7 @@ def get_nearby_listings(
     center_lat,
     center_lng,
     radius_km=DEFAULT_RADIUS_KM,
-    category=None,
+    genre=None,
     condition=None,
     min_price=None,
     max_price=None,
@@ -132,8 +132,8 @@ def get_nearby_listings(
         except Exception:
             pass
 
-    if category:
-        qs = qs.filter(book__categories__slug=category)
+    if genre:
+        qs = qs.filter(book__genres__slug=genre)
 
     if search:
         qs = qs.filter(
@@ -187,7 +187,7 @@ def create_book_listing(seller, data):
     openlibrary_key = data.get("openlibrary_key")
     title = data.get("title")
     author_name = data.get("author")
-    custom_category = data.get("category") or data.get("categories")
+    custom_genre = data.get("genre") or data.get("genres") or data.get("category") or data.get("categories")
 
     book = None
 
@@ -196,7 +196,7 @@ def create_book_listing(seller, data):
     elif openlibrary_key:
         book = Book.objects.filter(openlibrary_key=openlibrary_key).first()
         if not book:
-            book, _ = import_book_from_openlibrary(openlibrary_key, custom_category=custom_category)
+            book, _ = import_book_from_openlibrary(openlibrary_key, custom_category=custom_genre)
     elif title and author_name:
         book = Book.objects.filter(
             title__iexact=title.strip(),
@@ -210,10 +210,10 @@ def create_book_listing(seller, data):
             )
             book.authors.add(author)
 
-    if book and custom_category:
-        cats = process_category_input(custom_category)
-        if cats:
-            book.categories.add(*cats)
+    if book and custom_genre:
+        genres = process_genre_input(custom_genre)
+        if genres:
+            book.genres.add(*genres)
 
     listing = BookListing.objects.create(
         book=book,
@@ -264,9 +264,9 @@ def update_book_listing(listing, user, data):
         elif openlibrary_key:
             book = Book.objects.filter(openlibrary_key=openlibrary_key).first()
             if not book:
-                custom_category = data.get("category") or data.get("categories")
+                custom_genre = data.get("genre") or data.get("genres") or data.get("category") or data.get("categories")
                 book, _ = import_book_from_openlibrary(
-                    openlibrary_key, custom_category=custom_category
+                    openlibrary_key, custom_category=custom_genre
                 )
         elif title and author_name:
             book = Book.objects.filter(
@@ -280,11 +280,11 @@ def update_book_listing(listing, user, data):
                 book.authors.add(author)
 
         if book:
-            custom_category = data.get("category") or data.get("categories")
-            if custom_category:
-                cats = process_category_input(custom_category)
-                if cats:
-                    book.categories.add(*cats)
+            custom_genre = data.get("genre") or data.get("genres") or data.get("category") or data.get("categories")
+            if custom_genre:
+                genres = process_genre_input(custom_genre)
+                if genres:
+                    book.genres.add(*genres)
             listing.book = book
 
     listing.price = data.get("price", listing.price)

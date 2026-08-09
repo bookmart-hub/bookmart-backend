@@ -1,14 +1,14 @@
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from apps.books.models import Author, Book, Category, Review
+from apps.books.models import Author, Book, Genre, Review
 
 
-class CategoryListSerializer(serializers.ModelSerializer):
+class GenreListSerializer(serializers.ModelSerializer):
     total_books_count = serializers.SerializerMethodField()
 
     class Meta:
-        model = Category
+        model = Genre
         fields = [
             "id",
             "name",
@@ -62,7 +62,7 @@ class BookListingRankedSerializer(serializers.Serializer):
         return None
 
 
-class CanonicalBookCategorySerializer(serializers.Serializer):
+class CanonicalBookGenreSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     title = serializers.CharField()
     cover_url = serializers.SerializerMethodField()
@@ -127,12 +127,12 @@ class CanonicalBookCategorySerializer(serializers.Serializer):
         ).data
 
 
-class CategoryDetailSerializer(serializers.ModelSerializer):
+class GenreDetailSerializer(serializers.ModelSerializer):
     total_books_count = serializers.SerializerMethodField()
     books = serializers.SerializerMethodField()
 
     class Meta:
-        model = Category
+        model = Genre
         fields = [
             "id",
             "name",
@@ -146,17 +146,17 @@ class CategoryDetailSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.IntegerField)
     def get_total_books_count(self, obj):
-        if hasattr(obj, "category_books"):
-            return len(obj.category_books)
+        if hasattr(obj, "genre_books"):
+            return len(obj.genre_books)
         return obj.books.count()
 
-    @extend_schema_field(CanonicalBookCategorySerializer(many=True))
+    @extend_schema_field(CanonicalBookGenreSerializer(many=True))
     def get_books(self, obj):
-        if hasattr(obj, "category_books"):
-            books_list = obj.category_books
+        if hasattr(obj, "genre_books"):
+            books_list = obj.genre_books
         else:
             books_list = list(obj.books.all())
-        return CanonicalBookCategorySerializer(
+        return CanonicalBookGenreSerializer(
             books_list, many=True, context=self.context
         ).data
 
@@ -168,7 +168,7 @@ class BookCreatedResponseSerializer(serializers.Serializer):
     cover_url = serializers.CharField(allow_blank=True, allow_null=True)
     published_year = serializers.IntegerField(allow_null=True)
     authors = serializers.ListField(child=serializers.CharField())
-    categories = serializers.ListField(child=serializers.CharField())
+    genres = serializers.ListField(child=serializers.CharField())
     is_local = serializers.BooleanField(default=True)
 
 
@@ -180,7 +180,7 @@ class BookSearchSerializer(serializers.Serializer):
     isbn13 = serializers.CharField(allow_null=True, required=False)
     published_year = serializers.IntegerField(allow_null=True, required=False)
     cover_url = serializers.URLField(allow_null=True, required=False, allow_blank=True)
-    categories = serializers.ListField(
+    genres = serializers.ListField(
         child=serializers.CharField(), required=False, default=list
     )
     is_local = serializers.BooleanField(default=False)
@@ -223,15 +223,15 @@ class OpenLibraryImportSerializer(serializers.Serializer):
 
 class BookImportSerializer(serializers.Serializer):
     openlibrary_key = serializers.CharField(max_length=100)
-    category = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    genre = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
 
 class BookManualCreateSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=255)
     author = serializers.CharField(required=False, allow_blank=True)
     authors = serializers.ListField(child=serializers.CharField(), required=False)
-    category = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    categories = serializers.ListField(
+    genre = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    genres = serializers.ListField(
         child=serializers.CharField(), required=False, default=list
     )
     description = serializers.CharField(required=False, allow_blank=True)

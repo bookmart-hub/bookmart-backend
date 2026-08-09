@@ -19,7 +19,7 @@ from apps.marketplace.serializers import (
     BookListingResponseSerializer,
     BookListingUpdateSerializer,
     NearbyBookListingSerializer,
-    WishlistSerializer,
+    WishlistResponseSerializer,
     WishlistCreateSerializer,
     PlatformNotificationSerializer,
     BookContactLedgerSerializer,
@@ -32,6 +32,16 @@ from apps.marketplace.services import (
     update_book_listing,
 )
 
+
+import django_filters
+
+class BookListingFilter(django_filters.FilterSet):
+    genre = django_filters.CharFilter(field_name="book__genres__slug")
+    tag = django_filters.CharFilter(field_name="book__tags__tag__slug")
+
+    class Meta:
+        model = BookListing
+        fields = ["condition", "status", "book", "genre", "tag"]
 
 @extend_schema_view(
     list=extend_schema(
@@ -76,7 +86,7 @@ class BookListingViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     search_fields = ["book__title", "book__authors__name"]
-    filterset_fields = ["condition", "status", "book"]
+    filterset_class = BookListingFilter
     ordering_fields = ["price", "created_at"]
     filter_backends = [
         DjangoFilterBackend,
@@ -231,7 +241,7 @@ class BookListingViewSet(viewsets.ModelViewSet):
         summary="Nearby book listings",
         description=(
             "Returns available book listings within a given radius of the specified geographic coordinates, "
-            "ordered by distance (nearest first). Supports optional filtering by category, condition, price range, "
+            "ordered by distance (nearest first). Supports optional filtering by genre, condition, price range, "
             "and text search on book title or author name.\n\n"
             "Uses the Haversine formula for accurate distance calculation. Each returned listing includes a "
             "`distance_km` field rounded to 2 decimal places.\n\n"
@@ -275,11 +285,11 @@ class BookListingViewSet(viewsets.ModelViewSet):
                 description="Number of results per page (max 100).",
             ),
             OpenApiParameter(
-                name="category",
+                name="genre",
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
                 required=False,
-                description="Filter by category slug (e.g. 'fiction', 'exam-prep').",
+                description="Filter by genre slug (e.g. 'fiction', 'exam-prep').",
             ),
             OpenApiParameter(
                 name="condition",
@@ -406,7 +416,7 @@ class BookListingViewSet(viewsets.ModelViewSet):
             radius = DEFAULT_RADIUS_KM
 
         # ── Parse optional filters ──
-        category = request.query_params.get("category")
+        genre = request.query_params.get("genre") or request.query_params.get("category")
         condition = request.query_params.get("condition")
         min_price = request.query_params.get("min_price")
         max_price = request.query_params.get("max_price")
@@ -444,7 +454,7 @@ class BookListingViewSet(viewsets.ModelViewSet):
             center_lat=lat,
             center_lng=lng,
             radius_km=radius,
-            category=category,
+            genre=genre,
             condition=condition,
             min_price=min_price,
             max_price=max_price,
@@ -492,7 +502,7 @@ class BookListingViewSet(viewsets.ModelViewSet):
         summary="Add to wishlist",
         description="Add a book listing to the current user's wishlist.",
         request=WishlistCreateSerializer,
-        responses={201: WishlistSerializer},
+        responses={201: WishlistResponseSerializer},
         tags=["Wishlist"],
     ),
     destroy=extend_schema(
@@ -512,7 +522,7 @@ class WishlistViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == "create":
             return WishlistCreateSerializer
-        return WishlistSerializer
+        return WishlistResponseSerializer
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -543,6 +553,11 @@ class PlatformNotificationViewSet(
         return PlatformNotification.objects.filter(user=self.request.user).select_related(
             "related_listing", "action_trigger_user", "action_trigger_user__profile"
         )
+
+    @action(detail=False, methods=["POST"], url_path="read-all")
+    def read_all(self, request):
+        PlatformNotification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+        return Response({"detail": "All notifications marked as read."}, status=status.HTTP_200_OK)
 
 
 @extend_schema_view(

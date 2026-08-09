@@ -92,6 +92,7 @@ INSTALLED_APPS = [
       "apps.home_feed",
       "apps.notifications",
       "apps.reviews",
+      "apps.tags",
   ]
 
 MIDDLEWARE = [
@@ -297,6 +298,8 @@ elif STORAGE_PROVIDER == "s3":
     DEFAULT_STORAGE_BACKEND = "storages.backends.s3.S3Storage"
 else:
     DEFAULT_STORAGE_BACKEND = "django.core.files.storage.FileSystemStorage"
+    MEDIA_URL = "media/"
+    MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 from whitenoise.storage import CompressedManifestStaticFilesStorage
 
@@ -328,3 +331,11 @@ STORAGES = {
 
 # Compatibility settings for legacy third-party libraries (like django-cloudinary-storage) under Django 6.0
 DEFAULT_FILE_STORAGE = DEFAULT_STORAGE_BACKEND
+
+# Speed up test execution by using a fast password hasher during tests
+import sys
+if 'test' in sys.argv or 'test_coverage' in sys.argv:
+    PASSWORD_HASHERS = [
+        'django.contrib.auth.hashers.MD5PasswordHasher',
+    ]
+

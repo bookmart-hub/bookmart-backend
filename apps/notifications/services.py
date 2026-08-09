@@ -1,7 +1,39 @@
 from django.db.models import Count
+import requests
+import threading
+import logging
 
 from apps.authentication.models import User
 from apps.notifications.models import Notification
+
+logger = logging.getLogger(__name__)
+
+
+def _send_expo_push_notifications_async(expo_tokens: list[str], title: str, body: str, extra_data: dict = None):
+    payload = []
+    for token in expo_tokens:
+        payload.append({
+            "to": token,
+            "sound": "default",
+            "title": title,
+            "body": body,
+            "data": extra_data or {}
+        })
+    try:
+        response = requests.post(
+            "https://exp.host/--/api/v2/push/send",
+            json=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Accept-encoding": "gzip, deflate"
+            },
+            timeout=10
+        )
+        if response.status_code != 200:
+            logger.error(f"Failed to send push notifications: {response.text}")
+    except Exception as e:
+        logger.error(f"Failed to send push notifications: {str(e)}", exc_info=True)
 
 
 def create_notification(
@@ -12,7 +44,7 @@ def create_notification(
     reference_id: int | None = None,
     reference_type: str | None = None,
 ) -> Notification:
-    return Notification.objects.create(
+    notif = Notification.objects.create(
         user=user,
         title=title,
         body=body,
@@ -20,6 +52,26 @@ def create_notification(
         reference_id=reference_id,
         reference_type=reference_type,
     )
+
+    try:
+        tokens = list(user.devices.values_list("expo_push_token", flat=True))
+        if tokens:
+            extra_data = {
+                "id": notif.id,
+                "type": notification_type,
+                "reference_id": reference_id,
+                "reference_type": reference_type,
+            }
+            threading.Thread(
+                target=_send_expo_push_notifications_async,
+                args=(tokens, title, body, extra_data),
+                daemon=True
+            ).start()
+    except Exception as e:
+        logger.error(f"Failed to launch push notification thread: {str(e)}")
+
+    return notif
+
 
 
 def bulk_create_notifications(

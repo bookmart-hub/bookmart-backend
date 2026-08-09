@@ -35,3 +35,17 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"{self.type} - {self.title} for {self.user.email}"
+
+
+class Device(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="devices",
+    )
+    expo_push_token = models.CharField(max_length=255, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.email} - {self.expo_push_token}"
+

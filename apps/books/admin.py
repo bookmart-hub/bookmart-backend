@@ -1,10 +1,10 @@
 from django.contrib import admin
 
-from apps.books.models import Author, Book, Category
+from apps.books.models import Author, Book, Genre
 
 
-@admin.register(Category)
-class CategoryAdmin(admin.ModelAdmin):
+@admin.register(Genre)
+class GenreAdmin(admin.ModelAdmin):
     list_display = ('name', 'slug', 'icon', 'created_at')
     search_fields = ('name',)
     # Automatically generates slugs as you type names
@@ -15,7 +15,7 @@ class CategoryAdmin(admin.ModelAdmin):
 class BookAdmin(admin.ModelAdmin):
     list_display = ('title', 'isbn_13', 'publisher', 'created_at')
     search_fields = ('title', 'isbn_13', 'authors')
-    list_filter = ('categories', 'created_at')
+    list_filter = ('genres', 'created_at')
 
 
 @admin.register(Author)

@@ -5,7 +5,7 @@ from django.db.models import Count
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.books.models import Author, Book, Category
+from apps.books.models import Author, Book, Genre
 from apps.marketplace.models import BookListing, BookListingImage
 from apps.requirements.models import BookRequirement
 
@@ -35,11 +35,11 @@ class HomeFeedTests(APITestCase):
         self.book = Book.objects.create(title="Introduction to Algorithm")
         self.book.authors.add(self.author)
 
-        self.category = Category.objects.create(
+        self.genre = Genre.objects.create(
             name="Computer Science",
             slug="computer-science",
         )
-        self.book.categories.add(self.category)
+        self.book.genres.add(self.genre)
 
         self.dummy_image_data = (
             b"\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00"
@@ -86,8 +86,8 @@ class HomeFeedTests(APITestCase):
     # --- Permissions ---
 
     def test_unauthenticated_returns_401(self):
-        response = self.client.get("/api/v1/home/")
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        role_response = self.client.get("/api/v1/home/")
+        self.assertEqual(role_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     # --- No location ---
 
@@ -176,7 +176,7 @@ class HomeFeedTests(APITestCase):
         for i in range(20):
             book = Book.objects.create(title=f"Book {i}")
             book.authors.add(self.author)
-            book.categories.add(self.category)
+            book.genres.add(self.genre)
             self._create_listing(book=book)
 
         self.client.force_authenticate(user=self.buyer)
@@ -190,7 +190,7 @@ class HomeFeedTests(APITestCase):
         for i in range(10):
             book = Book.objects.create(title=f"Perf Book {i}")
             book.authors.add(self.author)
-            book.categories.add(self.category)
+            book.genres.add(self.genre)
             self._create_listing(book=book)
 
         self.client.force_authenticate(user=self.buyer)
@@ -200,15 +200,15 @@ class HomeFeedTests(APITestCase):
         response_json = json.dumps(response.data)
         self.assertLess(len(response_json.encode("utf-8")), 500 * 1024)
 
-    # --- Categories ---
+    # --- Genres ---
 
-    def test_categories_returns_with_book_count(self):
+    def test_genres_returns_with_book_count(self):
         self._create_listing()
         self.client.force_authenticate(user=self.buyer)
         response = self.client.get("/api/v1/home/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertGreater(len(response.data["categories"]), 0)
-        self.assertIn("total_books_count", response.data["categories"][0])
+        self.assertGreater(len(response.data["genres"]), 0)
+        self.assertIn("total_books_count", response.data["genres"][0])
 
     # --- Featured books ---
 
@@ -259,7 +259,7 @@ class HomeFeedTests(APITestCase):
         for i in range(15):
             book = Book.objects.create(title=f"Nearby Book {i}")
             book.authors.add(self.author)
-            book.categories.add(self.category)
+            book.genres.add(self.genre)
             listing = self._create_listing(book=book)
             listing.latitude = "12.9716"
             listing.longitude = "77.5946"
@@ -296,7 +296,7 @@ class HomeFeedTests(APITestCase):
     def test_recommended_books_uses_user_data(self):
         user_book = Book.objects.create(title="User's Book")
         user_book.authors.add(self.author)
-        user_book.categories.add(self.category)
+        user_book.genres.add(self.genre)
         self._create_listing(book=user_book, seller=self.buyer)
 
         self.client.force_authenticate(user=self.buyer)
@@ -327,7 +327,7 @@ class HomeFeedTests(APITestCase):
         ]:
             ids = [item["id"] for item in response.data[section]]
             self.assertEqual(
-                len(ids),
+                role_response := len(ids),
                 len(set(ids)),
                 f"Duplicate listings found within {section}",
             )

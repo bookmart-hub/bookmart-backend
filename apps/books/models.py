@@ -3,9 +3,10 @@ from decimal import Decimal
 from django.conf import settings
 from django.db import models
 from django.utils.text import slugify
+from django.contrib.contenttypes.fields import GenericRelation
 
 
-class Category(models.Model):
+class Genre(models.Model):
     """
     Hierarchical structural nodes for filtering books (e.g., Fiction, Exam Prep).
     Implements optimized slug lookups for fast Next.js URL paths.
@@ -17,7 +18,7 @@ class Category(models.Model):
         max_length=255,
         blank=True,
         default="",
-        help_text="Category subtitle/tagline e.g. 'Prepare to Succeed'",
+        help_text="Genre subtitle/tagline e.g. 'Prepare to Succeed'",
     )
     icon = models.CharField(
         max_length=50,
@@ -27,17 +28,17 @@ class Category(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name_plural = "Categories"
+        verbose_name_plural = "Genres"
         ordering = ["name"]
 
     def save(self, *args, **kwargs):
         if not self.slug:
             base_slug = slugify(self.name)
             if not base_slug:
-                base_slug = "category"
+                base_slug = "genre"
             slug = base_slug
             counter = 1
-            while Category.objects.filter(slug=slug).exists():
+            while Genre.objects.filter(slug=slug).exists():
                 slug = f"{base_slug}-{counter}"
                 counter += 1
             self.slug = slug
@@ -91,7 +92,8 @@ class Book(models.Model):
     published_date = models.DateField(null=True, blank=True)
     language = models.CharField(max_length=50, blank=True)
     cover_url = models.URLField(max_length=500, blank=True)
-    categories = models.ManyToManyField(Category, related_name="books")
+    genres = models.ManyToManyField(Genre, related_name="books")
+    tags = GenericRelation("tags.TaggedItem")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
