@@ -106,6 +106,8 @@ class BookListingResponseSerializer(serializers.ModelSerializer):
             "longitude",
             "favorite_count",
             "is_favorited",
+            "is_boosted",
+            "views_count",
             "tags",
             "created_at",
             "updated_at",

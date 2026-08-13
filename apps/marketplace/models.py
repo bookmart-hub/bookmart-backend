@@ -43,6 +43,9 @@ class BookListing(models.Model):
         max_digits=9, decimal_places=6, null=True, blank=True
     )
 
+    is_boosted = models.BooleanField(default=False, db_index=True)
+    views_count = models.PositiveIntegerField(default=0, db_index=True)
+
     tags = GenericRelation("tags.TaggedItem")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

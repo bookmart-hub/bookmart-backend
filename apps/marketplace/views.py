@@ -123,6 +123,22 @@ class BookListingViewSet(viewsets.ModelViewSet):
             return BookListingUpdateSerializer
         return BookListingResponseSerializer
 
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        from django.db.models import F
+        BookListing.objects.filter(pk=instance.pk).update(views_count=F('views_count') + 1)
+        instance.refresh_from_db()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["post"], url_path="boost")
+    def boost(self, request, pk=None):
+        listing = self.get_object()
+        listing.is_boosted = True
+        listing.save(update_fields=["is_boosted"])
+        serializer = BookListingResponseSerializer(listing, context={"request": request})
+        return Response(serializer.data)
+
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
